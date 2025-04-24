@@ -65,6 +65,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     result
 }
 
+fn mem_human_readable(bytes:u64) -> String {
+    if bytes < 10240 {
+        return format!("{bytes}")
+    }
+    if bytes < 1024*1024*10 {
+        return format!("{} K",bytes/1024)
+    }
+    if bytes < 1024*1024*1024*10 {
+        return format!("{} M",bytes/(1024*1024))
+    }
+    if bytes < 1024*1024*1024*1024*10 {
+        return format!("{} G",bytes/(1024*1024*1024))
+    }
+    format!("{} T",bytes/(1024*1024*1024*1024))
+}
+
 fn ui(frame: &mut Frame, state: &State) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -104,7 +120,7 @@ fn ui(frame: &mut Frame, state: &State) {
                 pid,
                 name,
                 format!("{:.1}", cpu),
-                format!("{} KB", mem),
+                mem_human_readable(mem),
             ])
         })
         .collect();
