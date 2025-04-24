@@ -87,6 +87,12 @@ fn ui(frame: &mut Frame, state: &State) {
         .margin(1)
         .constraints([Constraint::Length(3), Constraint::Min(5)])
         .split(frame.area());
+    
+    // Split upper rect
+    let upper = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50),Constraint::Percentage(50)])
+        .split(layout[0]);
 
     // Memory gauge
     let memory_usage = state.system.used_memory() as f64 / state.system.total_memory() as f64;
@@ -95,8 +101,18 @@ fn ui(frame: &mut Frame, state: &State) {
         .gauge_style(Style::new().fg(Color::Magenta))
         .ratio(memory_usage)
         .label(format!("{:.1}%", memory_usage * 100.0));
-    frame.render_widget(gauge, layout[0]);
+    frame.render_widget(gauge, upper[1]);
 
+    // CPU gauge
+    let cpu_usage = state.system.global_cpu_usage() as f64;
+    let gauge = Gauge::default()
+        .block(Block::new().title("CPU").borders(Borders::ALL))
+        .gauge_style(Style::new().fg(Color::Magenta))
+        .ratio(cpu_usage/100.0)
+        .label(format!("{:.1}%", cpu_usage));
+    frame.render_widget(gauge, upper[0]);
+    
+    
     // Processes table
     let processes = state.system.processes();
     let mut processes_data: Vec<_> = processes
