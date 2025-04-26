@@ -95,24 +95,20 @@ fn ui(frame: &mut Frame, state: &State) {
         .split(layout[0]);
 
     // Memory gauge
-    let memory_usage = state.system.used_memory() as f64 / state.system.total_memory() as f64;
-    let gauge = Gauge::default()
-        .block(Block::new().title("Memory").borders(Borders::ALL))
-        .gauge_style(Style::new().fg(Color::Magenta))
-        .ratio(memory_usage)
-        .label(format!("{:.1}%", memory_usage * 100.0));
+    let gauge = gauge_mem_simple(state);
     frame.render_widget(gauge, upper[1]);
 
     // CPU gauge
-    let cpu_usage = state.system.global_cpu_usage() as f64;
-    let gauge = Gauge::default()
-        .block(Block::new().title("CPU").borders(Borders::ALL))
-        .gauge_style(Style::new().fg(Color::Magenta))
-        .ratio(cpu_usage/100.0)
-        .label(format!("{:.1}%", cpu_usage));
+    let gauge = gauge_cpu_simple(state);
     frame.render_widget(gauge, upper[0]);
-    
-    
+
+
+    let table = table_widget_processes(state);
+
+    frame.render_widget(table, layout[1]);
+}
+
+fn table_widget_processes(state: &State) -> Table {
     // Processes table
     let processes = state.system.processes();
     let mut processes_data: Vec<_> = processes
@@ -154,9 +150,28 @@ fn ui(frame: &mut Frame, state: &State) {
             Constraint::Percentage(25),
         ],
     )
-    .header(header)
-    .block(Block::new().title("Processes").borders(Borders::ALL))
-    .style(Style::new().fg(Color::White));
+        .header(header)
+        .block(Block::new().title("Processes").borders(Borders::ALL))
+        .style(Style::new().fg(Color::White));
+    table
+}
 
-    frame.render_widget(table, layout[1]);
+fn gauge_cpu_simple(state: &State) -> Gauge {
+    let cpu_usage = state.system.global_cpu_usage() as f64;
+    let gauge = Gauge::default()
+        .block(Block::new().title("CPU").borders(Borders::ALL))
+        .gauge_style(Style::new().fg(Color::Magenta))
+        .ratio(cpu_usage / 100.0)
+        .label(format!("{:.1}%", cpu_usage));
+    gauge
+}
+
+fn gauge_mem_simple(state: &State) -> Gauge {
+    let memory_usage = state.system.used_memory() as f64 / state.system.total_memory() as f64;
+    let gauge = Gauge::default()
+        .block(Block::new().title("Memory").borders(Borders::ALL))
+        .gauge_style(Style::new().fg(Color::Magenta))
+        .ratio(memory_usage)
+        .label(format!("{:.1}%", memory_usage * 100.0));
+    gauge
 }
