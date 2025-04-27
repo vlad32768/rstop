@@ -49,6 +49,8 @@ impl State {
 
             self.plot_x+=1.0;
 
+            self.system.total_memory();
+            
             self.cpu_usage_all.drain(0..1);
             self.cpu_usage_all.push((self.plot_x,self.system.global_cpu_usage() as f64));
 
@@ -160,11 +162,13 @@ fn plot_cpu_global(state:&State) -> Chart {
         Dataset::default()
             .name("Total")
             .marker(symbols::Marker::Braille)
+            .graph_type(GraphType::Bar)
             .style(Style::default().fg(Color::Green))
             .data(&state.cpu_usage_all)
     ];
+    let last_cpu_usage = state.cpu_usage_all.last().unwrap().1;
     Chart::new(datasets)
-        .block(Block::bordered())
+        .block(Block::bordered().title(format!("CPU usage: {:.0}% total",last_cpu_usage)))
         .x_axis(
             Axis::default()
                 .bounds([state.cpu_usage_all.first().unwrap().0,state.cpu_usage_all.last().unwrap().0])
