@@ -1,3 +1,4 @@
+use ratatui::prelude::Stylize;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -11,6 +12,9 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 struct State {
     system: System,
     paused: bool,
+    plot_x: f64,
+    cpu_usage_all:Vec<(f64,f64)>,
+    mem_usage_all:Vec<(f64,f64)>,
 }
 
 impl State {
@@ -22,9 +26,15 @@ impl State {
             ProcessRefreshKind::everything(),
         );
         system.refresh_memory();
+        
+        let start_vec:Vec<(f64,f64)> = (0..200).map(|v|(v as f64,0.0)).collect();
+        
         Self {
             system,
             paused: false,
+            plot_x: 200.0,
+            cpu_usage_all:start_vec.clone(),
+            mem_usage_all:start_vec,
         }
     }
 
@@ -36,6 +46,14 @@ impl State {
                 ProcessRefreshKind::everything(),
             );
             self.system.refresh_memory();
+
+            self.plot_x+=1.0;
+
+            self.cpu_usage_all.drain(0..1);
+            self.cpu_usage_all.push((self.plot_x,self.system.global_cpu_usage() as f64));
+
+            self.mem_usage_all.drain(0..1);
+            self.mem_usage_all.push((self.plot_x,self.system.used_memory() as f64/(1024*1024)as f64));
         }
     }
 }
@@ -82,30 +100,81 @@ fn mem_human_readable(bytes:u64) -> String {
 }
 
 fn ui(frame: &mut Frame, state: &State) {
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints([Constraint::Length(3), Constraint::Min(5)])
-        .split(frame.area());
-    
-    // Split upper rect
-    let upper = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50),Constraint::Percentage(50)])
-        .split(layout[0]);
+    match 2{
+        1=>{
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints([Constraint::Length(3), Constraint::Min(5)])
+                .split(frame.area());
 
-    // Memory gauge
-    let gauge = gauge_mem_simple(state);
-    frame.render_widget(gauge, upper[1]);
+            // Split upper rect
+            let upper = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50),Constraint::Percentage(50)])
+                .split(layout[0]);
 
-    // CPU gauge
-    let gauge = gauge_cpu_simple(state);
-    frame.render_widget(gauge, upper[0]);
+            // Memory gauge
+            let gauge = gauge_mem_simple(state);
+            frame.render_widget(gauge, upper[1]);
+
+            // CPU gauge
+            let gauge = gauge_cpu_simple(state);
+            frame.render_widget(gauge, upper[0]);
 
 
-    let table = table_widget_processes(state);
+            let table = table_widget_processes(state);
+            frame.render_widget(table, layout[1]);
+        },
+        2=>{
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints([Constraint::Length(20), Constraint::Min(5)])
+                .split(frame.area());
 
-    frame.render_widget(table, layout[1]);
+            // Split upper rect
+            let upper = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50),Constraint::Percentage(50)])
+                .split(layout[0]);
+
+            // Memory gauge
+            let plot = plot_cpu_global(state);
+            frame.render_widget(plot, upper[1]);
+
+            // CPU gauge
+            let gauge = gauge_cpu_simple(state);
+            frame.render_widget(gauge, upper[0]);
+
+
+            let table = table_widget_processes(state);
+            frame.render_widget(table, layout[1]);
+        }
+        _=>{}
+    }
+}
+
+fn plot_cpu_global(state:&State) -> Chart {
+    let datasets = vec![
+        Dataset::default()
+            .name("Total")
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(Color::Green))
+            .data(&state.cpu_usage_all)
+    ];
+    Chart::new(datasets)
+        .block(Block::bordered())
+        .x_axis(
+            Axis::default()
+                .bounds([state.cpu_usage_all.first().unwrap().0,state.cpu_usage_all.last().unwrap().0])
+        )
+        .y_axis(
+            Axis::default()
+                .bounds([0.0,100.0])
+                .style(Style::default().gray())
+                .labels(["0".bold(),"25".into(),"50".bold(),"75".into(),"100".bold()])
+        )
 }
 
 fn table_widget_processes(state: &State) -> Table {
@@ -156,6 +225,8 @@ fn table_widget_processes(state: &State) -> Table {
     table
 }
 
+///
+///
 fn gauge_cpu_simple(state: &State) -> Gauge {
     let cpu_usage = state.system.global_cpu_usage() as f64;
     let gauge = Gauge::default()
