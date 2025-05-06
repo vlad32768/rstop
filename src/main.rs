@@ -62,7 +62,7 @@ impl State {
             self.mem_usage_all.drain(0..1);
             self.mem_usage_all.push((
                 self.plot_x,
-                self.system.used_memory() as f64 / (1024 * 1024) as f64,
+                self.system.used_memory() as f64 ,
             ));
         }
     }
@@ -149,13 +149,13 @@ fn ui(frame: &mut Frame, state: &State) {
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(layout[0]);
 
-            // Memory gauge
+            // CPU Plot
             let plot = plot_cpu_global(state);
             frame.render_widget(plot, upper[0]);
 
-            // CPU gauge
-            let gauge = gauge_mem_simple(state);
-            frame.render_widget(gauge, upper[1]);
+            // Mem plot
+            let mem_plot = plot_mem(state);
+            frame.render_widget(mem_plot, upper[1]);
 
             let table = table_widget_processes(state);
             frame.render_widget(table, layout[1]);
@@ -188,6 +188,7 @@ fn plot_cpu_global(state: &State) -> Chart {
             "CPU usage: {:.0}% total, {:.0} MHz",
             last_cpu_usage, cpu_frequency
         )))
+        .legend_position(Some(LegendPosition::TopLeft))
         .x_axis(Axis::default().bounds([
             state.cpu_usage_all.first().unwrap().0,
             state.cpu_usage_all.last().unwrap().0,
@@ -195,6 +196,42 @@ fn plot_cpu_global(state: &State) -> Chart {
         .y_axis(
             Axis::default()
                 .bounds([0.0, 100.0])
+                .style(Style::default().gray())
+                .labels([
+                    "0".bold(),
+                    "25".into(),
+                    "50".bold(),
+                    "75".into(),
+                    "100".bold(),
+                ]),
+        )
+}
+
+fn plot_mem(state: &State) -> Chart {
+    let datasets = vec![
+        Dataset::default()
+            .name("Memory")
+            .marker(symbols::Marker::Braille)
+            .graph_type(GraphType::Bar)
+            .style(Style::default().fg(Color::Magenta))
+            .data(&state.mem_usage_all),
+    ];
+    let last_mem_usage = state.mem_usage_all.last().unwrap().1;
+
+    let (total_mem, tot_unit) = mem_human_readable(state.system.total_memory());
+    let (used_mem,u_unit) = mem_human_readable(state.system.used_memory());
+    Chart::new(datasets)
+        .block(Block::bordered().title(format!(
+            "Mem usage: {} {}/{} {} total", used_mem, u_unit,total_mem ,tot_unit 
+        )))
+        .legend_position(Some(LegendPosition::TopLeft))
+        .x_axis(Axis::default().bounds([
+            state.cpu_usage_all.first().unwrap().0,
+            state.cpu_usage_all.last().unwrap().0,
+        ]))
+        .y_axis(
+            Axis::default()
+                .bounds([0.0, state.system.total_memory() as f64 ])
                 .style(Style::default().gray())
                 .labels([
                     "0".bold(),
