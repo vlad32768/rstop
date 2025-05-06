@@ -5,8 +5,8 @@ use crossterm::{
 };
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
-use std::{error::Error, time::Duration};
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+use std::{arch::x86_64::_CMP_EQ_UQ, error::Error, time::Duration};
+use sysinfo::{CpuRefreshKind, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 
 #[derive(Debug)]
 struct State {
@@ -46,7 +46,10 @@ impl State {
                 ProcessRefreshKind::everything(),
             );
             self.system.refresh_memory();
+            // self.system
+            //     .refresh_cpu_specifics(CpuRefreshKind::everything());
             self.system.refresh_cpu_usage();
+            //self.system.refresh_all();
 
             self.plot_x += 1.0;
 
@@ -90,20 +93,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     result
 }
 
-fn mem_human_readable(bytes: u64) -> String {
+/// returns truncated human-readable memory size + unit str
+fn mem_human_readable(bytes: u64) -> (String, &'static str) {
     if bytes < 10240 {
-        return format!("{bytes}");
+        return (format!("{bytes}"), "");
     }
     if bytes < 1024 * 1024 * 10 {
-        return format!("{} K", bytes / 1024);
+        return (format!("{}", bytes / 1024), "K");
     }
     if bytes < 1024 * 1024 * 1024 * 10 {
-        return format!("{} M", bytes / (1024 * 1024));
+        return (format!("{}", bytes / (1024 * 1024)), "M");
     }
     if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
-        return format!("{} G", bytes / (1024 * 1024 * 1024));
+        return (format!("{}", bytes / (1024 * 1024 * 1024)), "G");
     }
-    format!("{} T", bytes / (1024 * 1024 * 1024 * 1024))
+    (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
 }
 
 fn ui(frame: &mut Frame, state: &State) {
@@ -170,8 +174,20 @@ fn plot_cpu_global(state: &State) -> Chart {
             .data(&state.cpu_usage_all),
     ];
     let last_cpu_usage = state.cpu_usage_all.last().unwrap().1;
+    let cpu_frequency: f64 = state
+        .system
+        .cpus()
+        .iter()
+        .map(|cpu| cpu.frequency())
+        .sum::<u64>() as f64
+        / state.system.cpus().len() as f64;
+    //let cpu_frequency = state.system.cpus()[0].frequency();
+
     Chart::new(datasets)
-        .block(Block::bordered().title(format!("CPU usage: {:.0}% total", last_cpu_usage)))
+        .block(Block::bordered().title(format!(
+            "CPU usage: {:.0}% total, {:.0} MHz",
+            last_cpu_usage, cpu_frequency
+        )))
         .x_axis(Axis::default().bounds([
             state.cpu_usage_all.first().unwrap().0,
             state.cpu_usage_all.last().unwrap().0,
@@ -210,11 +226,12 @@ fn table_widget_processes(state: &State) -> Table {
     let rows: Vec<Row> = processes_data
         .into_iter()
         .map(|(pid, name, cpu, mem)| {
+            let (mem_str, mem_unit) = mem_human_readable(mem);
             Row::new(vec![
                 pid,
                 name,
                 format!("{:.1}", cpu),
-                mem_human_readable(mem),
+                format!("{} {}", mem_str, mem_unit),
             ])
         })
         .collect();
