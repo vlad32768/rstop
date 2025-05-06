@@ -46,6 +46,7 @@ impl State {
                 ProcessRefreshKind::everything(),
             );
             self.system.refresh_memory();
+            self.system.refresh_cpu_usage();
 
             self.plot_x += 1.0;
 
