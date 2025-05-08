@@ -121,7 +121,10 @@ fn mem_human_readable(bytes: u64) -> (String, &'static str) {
         return (format!("{}", bytes / (1024 * 1024)), "M");
     }
     if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
-        return (format!("{}", bytes / (1024 * 1024 * 1024)), "G");
+        return (
+            format!("{:.1}", bytes as f64 / (1024 * 1024 * 1024) as f64),
+            "G",
+        );
     }
     (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
 }
