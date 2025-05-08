@@ -15,7 +15,7 @@ struct State {
 }
 
 impl State {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut system = System::new();
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
@@ -35,7 +35,7 @@ impl State {
         }
     }
 
-    fn refresh(&mut self) {
+    pub fn refresh(&mut self) {
         if !self.paused {
             self.system.refresh_processes_specifics(
                 ProcessesToUpdate::All,
@@ -59,6 +59,19 @@ impl State {
             self.mem_usage_all.drain(0..1);
             self.mem_usage_all
                 .push((self.plot_x, self.system.used_memory() as f64));
+        }
+    }
+
+    /// Calculates starting data index for plots
+    pub fn start_data_idx(&self, r: Rect) -> usize {
+        // actual data width for the plot = rect width - 2 borders - 3 digits - 1 axis -
+
+        let widget_data_width = 2 * (r.width - 6) as usize;
+
+        if self.cpu_usage_all.len() < widget_data_width {
+            0
+        } else {
+            self.cpu_usage_all.len() - widget_data_width.clamp(0, usize::MAX)
         }
     }
 }
@@ -159,13 +172,7 @@ fn ui(frame: &mut Frame, state: &State) {
 }
 
 fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
-    // actual data width for the plot = rect width - 2 borders - 3 digits - 1 axis -
-    let widget_data_width = 2 * (area.width - 6) as usize;
-    let start_data_idx = if state.cpu_usage_all.len() < widget_data_width {
-        0
-    } else {
-        state.cpu_usage_all.len() - widget_data_width.clamp(0, usize::MAX)
-    };
+    let start_data_idx = state.start_data_idx(area);
     let dataslice = &state.cpu_usage_all[start_data_idx..];
     let datasets = vec![
         Dataset::default()
