@@ -1,6 +1,7 @@
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
+use std::time::Instant;
 use std::usize;
 use std::{error::Error, time::Duration};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
@@ -81,10 +82,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut state = State::new();
 
+    let tick_rate = Duration::from_millis(1000);
+    let mut last_tick = Instant::now();
+
     let result = loop {
         terminal.draw(|frame| ui(frame, &state))?;
 
-        if event::poll(Duration::from_millis(1000))? {
+        let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+
+        if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => break Ok(()),
@@ -93,8 +99,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-
-        state.refresh();
+        if last_tick.elapsed() >= tick_rate {
+            state.refresh();
+            last_tick = Instant::now();
+        }
     };
 
     ratatui::restore();
