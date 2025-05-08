@@ -7,9 +7,18 @@ use std::{error::Error, time::Duration};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 
 #[derive(Debug)]
+enum SortBy {
+    Name,
+    CPU,
+    PID,
+    Memory,
+}
+
+#[derive(Debug)]
 struct State {
     system: System,
     paused: bool,
+    sort_by: SortBy,
     plot_x: f64,
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
@@ -31,6 +40,7 @@ impl State {
             system,
             paused: false,
             plot_x: 199.0,
+            sort_by: SortBy::CPU,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
         }
@@ -95,6 +105,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 match key.code {
                     KeyCode::Char('q') => break Ok(()),
                     KeyCode::Char(' ') => state.paused = !state.paused,
+                    KeyCode::Char('c') => state.sort_by = SortBy::CPU,
+                    KeyCode::Char('m') => state.sort_by = SortBy::Memory,
+                    KeyCode::Char('n') => state.sort_by = SortBy::Name,
+                    KeyCode::Char('p') => state.sort_by = SortBy::PID,
+
                     _ => {}
                 }
             }
@@ -271,7 +286,7 @@ fn table_widget_processes(state: &State) -> Table {
         .values()
         .map(|process| {
             (
-                process.pid().to_string(),
+                process.pid().as_u32(),
                 process.name().to_str().unwrap().to_string(),
                 process.cpu_usage(),
                 process.memory(),
@@ -280,14 +295,19 @@ fn table_widget_processes(state: &State) -> Table {
         })
         .collect();
 
-    processes_data.sort_by(|a, b| b.2.total_cmp(&a.2));
+    processes_data.sort_by(|a, b| match state.sort_by {
+        SortBy::Name => b.1.cmp(&a.1),
+        SortBy::CPU => b.2.total_cmp(&a.2),
+        SortBy::PID => b.0.cmp(&a.0),
+        SortBy::Memory => b.3.cmp(&a.3),
+    });
 
     let rows: Vec<Row> = processes_data
         .into_iter()
         .map(|(pid, name, cpu, mem, du)| {
             let (mem_str, mem_unit) = mem_human_readable(mem);
             Row::new(vec![
-                pid,
+                format!("{pid}"),
                 name,
                 format!("{:.1}", cpu),
                 format!("{} {}", mem_str, mem_unit),
