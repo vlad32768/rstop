@@ -161,7 +161,8 @@ fn ui(frame: &mut Frame, state: &State) {
             render_plot_cpu_global(state, frame, upper[0]);
 
             // Mem plot
-            let mem_plot = plot_mem(state);
+            let mem_start_idx = state.start_data_idx(upper[1]);
+            let mem_plot = plot_mem(state, mem_start_idx);
             frame.render_widget(mem_plot, upper[1]);
 
             let table = table_widget_processes(state);
@@ -214,14 +215,15 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
     frame.render_widget(chart, area);
 }
 
-fn plot_mem(state: &State) -> Chart {
+fn plot_mem(state: &State, start_idx: usize) -> Chart {
+    let mem_usage_all = &state.mem_usage_all[start_idx..];
     let datasets = vec![
         Dataset::default()
             .name("Memory")
             .marker(symbols::Marker::Braille)
             .graph_type(GraphType::Bar)
             .style(Style::default().fg(Color::Magenta))
-            .data(&state.mem_usage_all),
+            .data(mem_usage_all),
     ];
     //let last_mem_usage = state.mem_usage_all.last().unwrap().1;
 
@@ -229,13 +231,13 @@ fn plot_mem(state: &State) -> Chart {
     let (used_mem, u_unit) = mem_human_readable(state.system.used_memory());
     Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "Mem usage: {} {}/{} {} total",
+            "Mem usage: {}{}/{}{}",
             used_mem, u_unit, total_mem, tot_unit
         )))
         .legend_position(Some(LegendPosition::TopLeft))
         .x_axis(Axis::default().bounds([
-            state.cpu_usage_all.first().unwrap().0,
-            state.cpu_usage_all.last().unwrap().0,
+            mem_usage_all.first().unwrap().0,
+            mem_usage_all.last().unwrap().0,
         ]))
         .y_axis(
             Axis::default()
