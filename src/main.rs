@@ -275,6 +275,7 @@ fn table_widget_processes(state: &State) -> Table {
                 process.name().to_str().unwrap().to_string(),
                 process.cpu_usage(),
                 process.memory(),
+                process.disk_usage(),
             )
         })
         .collect();
@@ -283,28 +284,30 @@ fn table_widget_processes(state: &State) -> Table {
 
     let rows: Vec<Row> = processes_data
         .into_iter()
-        .map(|(pid, name, cpu, mem)| {
+        .map(|(pid, name, cpu, mem, du)| {
             let (mem_str, mem_unit) = mem_human_readable(mem);
             Row::new(vec![
                 pid,
                 name,
                 format!("{:.1}", cpu),
                 format!("{} {}", mem_str, mem_unit),
+                format!("{}/{}", du.read_bytes, du.written_bytes),
             ])
         })
         .collect();
 
-    let header = Row::new(vec!["PID", "Name", "CPU%", "MEM"])
+    let header = Row::new(vec!["PID", "Name", "CPU%", "MEM", "Disk R/W"])
         .style(Style::new().bold())
         .bottom_margin(1);
 
     let table = Table::new(
         rows,
         [
-            Constraint::Percentage(10),
-            Constraint::Percentage(40),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
+            Constraint::Length(6),
+            Constraint::Length(20),
+            Constraint::Length(5),
+            Constraint::Length(6),
+            Constraint::Percentage(20),
         ],
     )
     .header(header)
