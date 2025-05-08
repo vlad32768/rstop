@@ -1,12 +1,9 @@
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use crossterm::event::{self, Event, KeyCode};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
-use std::{arch::x86_64::_CMP_EQ_UQ, error::Error, time::Duration};
-use sysinfo::{CpuRefreshKind, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+use std::usize;
+use std::{error::Error, time::Duration};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 
 #[derive(Debug)]
 struct State {
@@ -32,7 +29,7 @@ impl State {
         Self {
             system,
             paused: false,
-            plot_x: 200.0,
+            plot_x: 199.0,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
         }
@@ -60,10 +57,8 @@ impl State {
                 .push((self.plot_x, self.system.global_cpu_usage() as f64));
 
             self.mem_usage_all.drain(0..1);
-            self.mem_usage_all.push((
-                self.plot_x,
-                self.system.used_memory() as f64 ,
-            ));
+            self.mem_usage_all
+                .push((self.plot_x, self.system.used_memory() as f64));
         }
     }
 }
@@ -150,8 +145,7 @@ fn ui(frame: &mut Frame, state: &State) {
                 .split(layout[0]);
 
             // CPU Plot
-            let plot = plot_cpu_global(state);
-            frame.render_widget(plot, upper[0]);
+            render_plot_cpu_global(state, frame, upper[0]);
 
             // Mem plot
             let mem_plot = plot_mem(state);
@@ -164,14 +158,22 @@ fn ui(frame: &mut Frame, state: &State) {
     }
 }
 
-fn plot_cpu_global(state: &State) -> Chart {
+fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
+    // actual data width for the plot = rect width - 2 borders - 3 digits - 1 axis -
+    let widget_data_width = 2 * (area.width - 6) as usize;
+    let start_data_idx = if state.cpu_usage_all.len() < widget_data_width {
+        0
+    } else {
+        state.cpu_usage_all.len() - widget_data_width.clamp(0, usize::MAX)
+    };
+    let dataslice = &state.cpu_usage_all[start_data_idx..];
     let datasets = vec![
         Dataset::default()
             .name("Total")
             .marker(symbols::Marker::Braille)
             .graph_type(GraphType::Bar)
             .style(Style::default().fg(Color::Green))
-            .data(&state.cpu_usage_all),
+            .data(dataslice),
     ];
     let last_cpu_usage = state.cpu_usage_all.last().unwrap().1;
     let cpu_frequency: f64 = state
@@ -183,16 +185,13 @@ fn plot_cpu_global(state: &State) -> Chart {
         / state.system.cpus().len() as f64;
     //let cpu_frequency = state.system.cpus()[0].frequency();
 
-    Chart::new(datasets)
+    let chart = Chart::new(datasets)
         .block(Block::bordered().title(format!(
             "CPU usage: {:.0}% total, {:.0} MHz",
             last_cpu_usage, cpu_frequency
         )))
         .legend_position(Some(LegendPosition::TopLeft))
-        .x_axis(Axis::default().bounds([
-            state.cpu_usage_all.first().unwrap().0,
-            state.cpu_usage_all.last().unwrap().0,
-        ]))
+        .x_axis(Axis::default().bounds([dataslice.first().unwrap().0, dataslice.last().unwrap().0]))
         .y_axis(
             Axis::default()
                 .bounds([0.0, 100.0])
@@ -204,7 +203,8 @@ fn plot_cpu_global(state: &State) -> Chart {
                     "75".into(),
                     "100".bold(),
                 ]),
-        )
+        );
+    frame.render_widget(chart, area);
 }
 
 fn plot_mem(state: &State) -> Chart {
@@ -216,13 +216,14 @@ fn plot_mem(state: &State) -> Chart {
             .style(Style::default().fg(Color::Magenta))
             .data(&state.mem_usage_all),
     ];
-    let last_mem_usage = state.mem_usage_all.last().unwrap().1;
+    //let last_mem_usage = state.mem_usage_all.last().unwrap().1;
 
     let (total_mem, tot_unit) = mem_human_readable(state.system.total_memory());
-    let (used_mem,u_unit) = mem_human_readable(state.system.used_memory());
+    let (used_mem, u_unit) = mem_human_readable(state.system.used_memory());
     Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "Mem usage: {} {}/{} {} total", used_mem, u_unit,total_mem ,tot_unit 
+            "Mem usage: {} {}/{} {} total",
+            used_mem, u_unit, total_mem, tot_unit
         )))
         .legend_position(Some(LegendPosition::TopLeft))
         .x_axis(Axis::default().bounds([
@@ -231,7 +232,7 @@ fn plot_mem(state: &State) -> Chart {
         ]))
         .y_axis(
             Axis::default()
-                .bounds([0.0, state.system.total_memory() as f64 ])
+                .bounds([0.0, state.system.total_memory() as f64])
                 .style(Style::default().gray())
                 .labels([
                     "0".bold(),
