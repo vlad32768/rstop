@@ -1,7 +1,6 @@
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
-use std::intrinsics::unreachable;
 use std::time::Instant;
 use std::usize;
 use std::{error::Error, time::Duration};
