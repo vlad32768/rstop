@@ -1,6 +1,7 @@
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
+use std::intrinsics::unreachable;
 use std::time::Instant;
 use std::usize;
 use std::{error::Error, time::Duration};
@@ -23,6 +24,7 @@ struct State {
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
     t_state: TableState,
+    sb_state: ScrollbarState,
     processes_data: ProcessesData,
 }
 
@@ -65,6 +67,7 @@ impl State {
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
             t_state: TableState::default().with_selected(0),
+            sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
         }
     }
@@ -94,8 +97,34 @@ impl State {
             self.mem_usage_all
                 .push((self.plot_x, self.system.used_memory() as f64));
 
+            //------------ update process table
+            // save currently selected pid
+            let selected_pid = if let Some(idx) = self.t_state.selected() {
+                self.processes_data[idx].0
+            } else {
+                unreachable!();
+            };
+
+            // new process data + sort
             self.processes_data = create_processes_data(&self.system);
             self.sort_process_data();
+
+            //restore the previous selection
+            let new_selected_idx = if let Some(elem) = self
+                .processes_data
+                .iter()
+                .enumerate()
+                .find(|v| v.1.0 == selected_pid)
+            {
+                elem.0
+            } else {
+                0
+            };
+            self.t_state.select(Some(new_selected_idx));
+            self.sb_state = self
+                .sb_state
+                .content_length(self.processes_data.len())
+                .position(new_selected_idx);
         }
     }
 
@@ -124,7 +153,7 @@ impl State {
             None => 0,
         };
         self.t_state.select(Some(i));
-        //self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+        self.sb_state = self.sb_state.position(i);
     }
 
     pub fn previous_row(&mut self) {
@@ -139,7 +168,7 @@ impl State {
             None => 0,
         };
         self.t_state.select(Some(i));
-        //self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+        self.sb_state = self.sb_state.position(i);
     }
     fn sort_process_data(&mut self) {
         self.processes_data.sort_by(|a, b| match self.sort_by {
@@ -377,6 +406,16 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     .style(Style::new().fg(Color::White))
     .row_highlight_style(Style::default().bg(Color::DarkGray));
     frame.render_stateful_widget(table, area, &mut state.t_state);
+
+    frame.render_stateful_widget(
+        Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight), //.begin_symbol(None)
+        // .end_symbol(None)
+        area.inner(Margin {
+            vertical: 1,
+            horizontal: 1,
+        }),
+        &mut state.sb_state,
+    );
 }
 
 ///
