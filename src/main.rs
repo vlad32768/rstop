@@ -116,7 +116,7 @@ impl State {
         let i = match self.t_state.selected() {
             Some(i) => {
                 if i >= self.processes_data.len() - 1 {
-                    0
+                    self.processes_data.len() - 1
                 } else {
                     i + 1
                 }
@@ -131,7 +131,7 @@ impl State {
         let i = match self.t_state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.processes_data.len() - 1
+                    0
                 } else {
                     i - 1
                 }
