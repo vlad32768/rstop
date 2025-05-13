@@ -401,7 +401,12 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         ],
     )
     .header(header)
-    .block(Block::new().title("Processes").borders(Borders::ALL))
+    .block(
+        Block::new()
+            .title("Processes")
+            .title(state.processes_data.len().to_string())
+            .borders(Borders::ALL),
+    )
     .style(Style::new().fg(Color::White))
     .row_highlight_style(Style::default().bg(Color::DarkGray));
     frame.render_stateful_widget(table, area, &mut state.t_state);
