@@ -4,7 +4,7 @@ use ratatui::{prelude::*, widgets::*};
 use std::time::Instant;
 use std::usize;
 use std::{error::Error, time::Duration};
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{DiskUsage, ProcessRefreshKind, ProcessesToUpdate, System};
 
 #[derive(Debug)]
 enum SortBy {
@@ -23,6 +23,24 @@ struct State {
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
     t_state: TableState,
+    processes_data: ProcessesData,
+}
+
+type ProcessesData = Vec<(u32, String, f32, u64, DiskUsage)>;
+fn create_processes_data(system: &System) -> ProcessesData {
+    system
+        .processes()
+        .values()
+        .map(|process| {
+            (
+                process.pid().as_u32(),
+                process.name().to_str().unwrap().to_string(),
+                process.cpu_usage(),
+                process.memory(),
+                process.disk_usage(),
+            )
+        })
+        .collect()
 }
 
 impl State {
@@ -37,6 +55,8 @@ impl State {
 
         let start_vec: Vec<(f64, f64)> = (0..200).map(|v| (v as f64, 0.0)).collect();
 
+        let pd_start = create_processes_data(&system);
+
         Self {
             system,
             paused: false,
@@ -45,6 +65,7 @@ impl State {
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
             t_state: TableState::default().with_selected(0),
+            processes_data: pd_start,
         }
     }
 
@@ -72,6 +93,9 @@ impl State {
             self.mem_usage_all.drain(0..1);
             self.mem_usage_all
                 .push((self.plot_x, self.system.used_memory() as f64));
+
+            self.processes_data = create_processes_data(&self.system);
+            self.sort_process_data();
         }
     }
 
@@ -86,6 +110,44 @@ impl State {
         } else {
             self.cpu_usage_all.len() - widget_data_width.clamp(0, usize::MAX)
         }
+    }
+
+    pub fn next_row(&mut self) {
+        let i = match self.t_state.selected() {
+            Some(i) => {
+                if i >= self.processes_data.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.t_state.select(Some(i));
+        //self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+    }
+
+    pub fn previous_row(&mut self) {
+        let i = match self.t_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.processes_data.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.t_state.select(Some(i));
+        //self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+    }
+    fn sort_process_data(&mut self) {
+        self.processes_data.sort_by(|a, b| match self.sort_by {
+            SortBy::Name => b.1.cmp(&a.1),
+            SortBy::CPU => b.2.total_cmp(&a.2),
+            SortBy::PID => b.0.cmp(&a.0),
+            SortBy::Memory => b.3.cmp(&a.3),
+        });
     }
 }
 
@@ -111,7 +173,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     KeyCode::Char('m') => state.sort_by = SortBy::Memory,
                     KeyCode::Char('n') => state.sort_by = SortBy::Name,
                     KeyCode::Char('p') => state.sort_by = SortBy::PID,
-
+                    KeyCode::Up => state.previous_row(),
+                    KeyCode::Down => state.next_row(),
                     _ => {}
                 }
             }
@@ -280,35 +343,14 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
 }
 
 fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rect) {
-    // Processes table
-    let processes = state.system.processes();
-    let mut processes_data: Vec<_> = processes
-        .values()
-        .map(|process| {
-            (
-                process.pid().as_u32(),
-                process.name().to_str().unwrap().to_string(),
-                process.cpu_usage(),
-                process.memory(),
-                process.disk_usage(),
-            )
-        })
-        .collect();
-
-    processes_data.sort_by(|a, b| match state.sort_by {
-        SortBy::Name => b.1.cmp(&a.1),
-        SortBy::CPU => b.2.total_cmp(&a.2),
-        SortBy::PID => b.0.cmp(&a.0),
-        SortBy::Memory => b.3.cmp(&a.3),
-    });
-
-    let rows: Vec<Row> = processes_data
-        .into_iter()
+    let rows: Vec<Row> = state
+        .processes_data
+        .iter()
         .map(|(pid, name, cpu, mem, du)| {
-            let (mem_str, mem_unit) = mem_human_readable(mem);
+            let (mem_str, mem_unit) = mem_human_readable(*mem);
             Row::new(vec![
                 format!("{pid}"),
-                name,
+                name.clone(), //fixme
                 format!("{:.1}", cpu),
                 format!("{} {}", mem_str, mem_unit),
                 format!("{}/{}", du.read_bytes, du.written_bytes),
@@ -332,7 +374,8 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     )
     .header(header)
     .block(Block::new().title("Processes").borders(Borders::ALL))
-    .style(Style::new().fg(Color::White));
+    .style(Style::new().fg(Color::White))
+    .row_highlight_style(Style::default().bg(Color::DarkGray));
     frame.render_stateful_widget(table, area, &mut state.t_state);
 }
 
