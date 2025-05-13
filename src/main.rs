@@ -22,6 +22,7 @@ struct State {
     plot_x: f64,
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
+    t_state: TableState,
 }
 
 impl State {
@@ -43,6 +44,7 @@ impl State {
             sort_by: SortBy::CPU,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
+            t_state: TableState::default().with_selected(0),
         }
     }
 
@@ -96,7 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut last_tick = Instant::now();
 
     let result = loop {
-        terminal.draw(|frame| ui(frame, &state))?;
+        terminal.draw(|frame| ui(frame, &mut state))?;
 
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
 
@@ -144,7 +146,7 @@ fn mem_human_readable(bytes: u64) -> (String, &'static str) {
     (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
 }
 
-fn ui(frame: &mut Frame, state: &State) {
+fn ui(frame: &mut Frame, state: &mut State) {
     match 2 {
         1 => {
             let layout = Layout::default()
@@ -167,8 +169,7 @@ fn ui(frame: &mut Frame, state: &State) {
             let gauge = gauge_cpu_simple(state);
             frame.render_widget(gauge, upper[0]);
 
-            let table = table_widget_processes(state);
-            frame.render_widget(table, layout[1]);
+            render_table_widget_processes(state, frame, layout[1]);
         }
         2 => {
             let layout = Layout::default()
@@ -191,8 +192,7 @@ fn ui(frame: &mut Frame, state: &State) {
             let mem_plot = plot_mem(state, mem_start_idx);
             frame.render_widget(mem_plot, upper[1]);
 
-            let table = table_widget_processes(state);
-            frame.render_widget(table, layout[1]);
+            render_table_widget_processes(state, frame, layout[1]);
         }
         _ => {}
     }
@@ -279,7 +279,7 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
         )
 }
 
-fn table_widget_processes(state: &State) -> Table {
+fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rect) {
     // Processes table
     let processes = state.system.processes();
     let mut processes_data: Vec<_> = processes
@@ -333,7 +333,7 @@ fn table_widget_processes(state: &State) -> Table {
     .header(header)
     .block(Block::new().title("Processes").borders(Borders::ALL))
     .style(Style::new().fg(Color::White));
-    table
+    frame.render_stateful_widget(table, area, &mut state.t_state);
 }
 
 ///
