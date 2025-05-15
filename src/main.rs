@@ -140,35 +140,33 @@ impl State {
         }
     }
 
-    pub fn next_row(&mut self) {
+    pub fn next_row(&mut self, n: usize) {
         let i = match self.t_state.selected() {
             Some(i) => {
-                if i >= self.processes_data.len() - 1 {
+                if i + n >= self.processes_data.len() - 1 {
                     self.processes_data.len() - 1
                 } else {
-                    i + 1
+                    i + n
                 }
             }
             None => 0,
         };
-        self.t_state.select(Some(i));
-        self.sb_state = self.sb_state.position(i);
+        self.select_row(i);
     }
 
-    pub fn previous_row(&mut self) {
+    pub fn previous_row(&mut self, n: usize) {
         let i = match self.t_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    0
-                } else {
-                    i - 1
-                }
-            }
+            Some(i) => i.saturating_sub(n),
             None => 0,
         };
-        self.t_state.select(Some(i));
-        self.sb_state = self.sb_state.position(i);
+        self.select_row(i);
     }
+
+    pub fn select_row(&mut self, row_no: usize) {
+        self.t_state.select(Some(row_no));
+        self.sb_state = self.sb_state.position(row_no);
+    }
+
     fn sort_process_data(&mut self) {
         self.processes_data.sort_by(|a, b| match self.sort_by {
             SortBy::Name => b.1.cmp(&a.1),
@@ -201,8 +199,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     KeyCode::Char('m') => state.sort_by = SortBy::Memory,
                     KeyCode::Char('n') => state.sort_by = SortBy::Name,
                     KeyCode::Char('p') => state.sort_by = SortBy::PID,
-                    KeyCode::Up => state.previous_row(),
-                    KeyCode::Down => state.next_row(),
+                    KeyCode::Up => state.previous_row(1),
+                    KeyCode::Down => state.next_row(1),
+                    KeyCode::PageUp => state.previous_row(10),
+                    KeyCode::PageDown => state.next_row(10),
+                    KeyCode::Home => state.select_row(0),
+                    KeyCode::End => state.select_row(state.processes_data.len() - 1),
                     _ => {}
                 }
             }
