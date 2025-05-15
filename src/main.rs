@@ -380,12 +380,18 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         .iter()
         .map(|(pid, name, cpu, mem, du)| {
             let (mem_str, mem_unit) = mem_human_readable(*mem);
+            let du_str = {
+                let (rbs, rbl) = mem_human_readable(du.read_bytes);
+                let (wbs, wbl) = mem_human_readable(du.written_bytes);
+                format!("{rbs}{rbl}/{wbs}{wbl}")
+            };
+
             Row::new(vec![
                 format!("{pid}"),
                 name.clone(), //fixme
                 format!("{:.1}", cpu),
                 format!("{} {}", mem_str, mem_unit),
-                format!("{}/{}", du.read_bytes, du.written_bytes),
+                du_str,
             ])
         })
         .collect();
