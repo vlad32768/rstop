@@ -1,4 +1,4 @@
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
 use std::time::Instant;
@@ -192,20 +192,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => break Ok(()),
-                    KeyCode::Char(' ') => state.paused = !state.paused,
-                    KeyCode::Char('c') => state.sort_by = SortBy::CPU,
-                    KeyCode::Char('m') => state.sort_by = SortBy::Memory,
-                    KeyCode::Char('n') => state.sort_by = SortBy::Name,
-                    KeyCode::Char('p') => state.sort_by = SortBy::PID,
-                    KeyCode::Up => state.previous_row(1),
-                    KeyCode::Down => state.next_row(1),
-                    KeyCode::PageUp => state.previous_row(10),
-                    KeyCode::PageDown => state.next_row(10),
-                    KeyCode::Home => state.select_row(0),
-                    KeyCode::End => state.select_row(state.processes_data.len() - 1),
-                    _ => {}
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => break Ok(()),
+                        KeyCode::Char(' ') => state.paused = !state.paused,
+                        KeyCode::Char('c') => state.sort_by = SortBy::CPU,
+                        KeyCode::Char('m') => state.sort_by = SortBy::Memory,
+                        KeyCode::Char('n') => state.sort_by = SortBy::Name,
+                        KeyCode::Char('p') => state.sort_by = SortBy::PID,
+                        KeyCode::Up => state.previous_row(1),
+                        KeyCode::Down => state.next_row(1),
+                        KeyCode::PageUp => state.previous_row(10),
+                        KeyCode::PageDown => state.next_row(10),
+                        KeyCode::Home => state.select_row(0),
+                        KeyCode::End => state.select_row(state.processes_data.len() - 1),
+                        _ => {}
+                    }
                 }
             }
         }
