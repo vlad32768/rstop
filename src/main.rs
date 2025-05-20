@@ -350,10 +350,11 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
 
     let (total_mem, tot_unit) = mem_human_readable(state.system.total_memory());
     let (used_mem, u_unit) = mem_human_readable(state.system.used_memory());
+    let (used_swap,usw_unit) = mem_human_readable(state.system.used_swap());
+    let (total_swap, tsw_unit) = mem_human_readable(state.system.total_swap());
     Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "Mem usage: {}{}/{}{}",
-            used_mem, u_unit, total_mem, tot_unit
+            "Mem usage:{used_mem}{u_unit}/{total_mem}{tot_unit}; Swap:{used_swap}{usw_unit}/{total_swap}{tsw_unit}"
         )))
         .legend_position(Some(LegendPosition::TopLeft))
         .x_axis(Axis::default().bounds([
