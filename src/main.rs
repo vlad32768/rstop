@@ -4,7 +4,7 @@ use ratatui::{prelude::*, widgets::*};
 use std::time::Instant;
 use std::usize;
 use std::{error::Error, time::Duration};
-use sysinfo::{DiskUsage, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, System, SUPPORTED_SIGNALS};
 
 #[derive(Debug)]
 enum SortBy {
@@ -15,7 +15,14 @@ enum SortBy {
 }
 
 #[derive(Debug)]
+enum Mode{
+    Normal,
+    Kill,
+}
+
+#[derive(Debug)]
 struct State {
+    mode: Mode,
     system: System,
     paused: bool,
     sort_by: SortBy,
@@ -25,8 +32,9 @@ struct State {
     t_state: TableState,
     sb_state: ScrollbarState,
     processes_data: ProcessesData,
+    deb_show:bool,
 }
-
+/// (pid,name,cpu_usage,mem_usage,disk_usage)
 type ProcessesData = Vec<(u32, String, f32, u64, DiskUsage)>;
 fn create_processes_data(system: &System) -> ProcessesData {
     system
@@ -59,6 +67,7 @@ impl State {
         let pd_start = create_processes_data(&system);
 
         Self {
+            mode: Mode::Normal,
             system,
             paused: false,
             plot_x: 199.0,
@@ -68,9 +77,15 @@ impl State {
             t_state: TableState::default().with_selected(0),
             sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
+            deb_show: false,
         }
     }
 
+    pub fn get_selected_process(&self)->Option<&Process>{
+        let sel_pid = self.processes_data[self.t_state.selected().unwrap_or(0)].0;
+        self.system.process(Pid::from_u32(sel_pid))
+    }
+    
     pub fn refresh(&mut self) {
         if !self.paused {
             self.system.refresh_processes_specifics(
@@ -200,6 +215,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Char('m') => state.sort_by = SortBy::Memory,
                         KeyCode::Char('n') => state.sort_by = SortBy::Name,
                         KeyCode::Char('p') => state.sort_by = SortBy::PID,
+                        KeyCode::Char('k') => state.mode = Mode::Kill,
+                        KeyCode::Char('y') => {
+                            match state.mode {
+                                Mode::Kill => {
+                                    state.get_selected_process().unwrap().kill();
+                                    state.mode = Mode::Normal;
+                                }
+                                _ => {}
+                            }
+                        }
+                        KeyCode::Esc => state.mode = Mode::Normal,
+                        KeyCode::Char('d') => state.deb_show = !state.deb_show,
                         KeyCode::Up => state.previous_row(1),
                         KeyCode::Down => state.next_row(1),
                         KeyCode::PageUp => state.previous_row(10),
@@ -431,6 +458,58 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         }),
         &mut state.sb_state,
     );
+    //---------- kill msgbox ------------
+    if let Mode::Kill = state.mode {
+        let rect = centered_rect(60, 20, area);
+        let kill_block = Block::default().title("Kill process (Y/N)?")
+            .borders(Borders::ALL)
+            .style(Style::default()
+                .fg(Color::White)
+                .bg(Color::Red));
+        
+        let proc = state.get_selected_process().unwrap();
+    
+        let cmdline = if proc.cmd().is_empty(){
+            "[None]"
+
+        } else {
+            proc.cmd()[0].to_str().unwrap()
+        };
+        let mem_str = {
+            let (m,l) = mem_human_readable(proc.memory());
+            format!("{m}{l}")
+        };
+        let kill_string=format!("PID:{}\nName:{}\nCommand:{}\nMem:{}",
+                                proc.pid().as_u32(),
+                                proc.name().to_str().unwrap(),
+                                cmdline,
+                                mem_str);
+        let kill_text = Paragraph::new(kill_string)
+            .block(kill_block)
+            .wrap(Wrap{trim: true}
+            );
+        frame.render_widget(Clear, rect);
+        frame.render_widget(kill_text, rect);
+    }
+    if state.deb_show{
+        //-------- Debug wnd------
+        let rect = centered_rect(60, 60, area);
+        let debug_blk = Block::default().title("Debug info")
+            .borders(Borders::ALL)
+            .style(Style::default()
+                .fg(Color::Green)
+                .bg(Color::DarkGray));
+        let deb_text = vec![
+            Line::from(format!("Supported signals:{:?}",SUPPORTED_SIGNALS)),
+            Line::from(System::long_os_version().unwrap()),
+        ];
+        let deb_par = Paragraph::new(deb_text)
+            .block(debug_blk)
+            .wrap(Wrap{trim: true});
+        frame.render_widget(Clear, rect);
+        frame.render_widget(deb_par, rect);
+
+    }
 }
 
 ///
@@ -453,4 +532,27 @@ fn gauge_mem_simple(state: &State) -> Gauge {
         .ratio(memory_usage)
         .label(format!("{:.1}%", memory_usage * 100.0));
     gauge
+}
+
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    // Cut the given rectangle into three vertical pieces
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    // Then cut the middle vertical piece into three width-wise pieces
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1] // Return the middle chunk
 }
