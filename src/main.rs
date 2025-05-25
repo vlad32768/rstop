@@ -213,10 +213,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     match key.code {
                         KeyCode::Char('q') => break Ok(()),
                         KeyCode::Char(' ') => state.paused = !state.paused,
-                        KeyCode::Char('c') => state.sort_by = SortBy::CPU,
-                        KeyCode::Char('m') => state.sort_by = SortBy::Memory,
-                        KeyCode::Char('n') => state.sort_by = SortBy::Name,
-                        KeyCode::Char('p') => state.sort_by = SortBy::PID,
+                        KeyCode::Char('1') => state.sort_by = SortBy::PID,
+                        KeyCode::Char('2') => state.sort_by = SortBy::Name,
+                        KeyCode::Char('3') => state.sort_by = SortBy::CPU,
+                        KeyCode::Char('4') => state.sort_by = SortBy::Memory,
                         KeyCode::Char('k') => state.mode = Mode::Kill,
                         KeyCode::Char('y') => match state.mode {
                             Mode::Kill => {
@@ -225,7 +225,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             }
                             _ => {}
                         },
-                        KeyCode::Esc => state.mode = Mode::Normal,
+                        KeyCode::Char('n') => state.mode = Mode::Normal,
                         KeyCode::Char('d') => state.deb_show = !state.deb_show,
                         KeyCode::Up => state.previous_row(1),
                         KeyCode::Down => state.next_row(1),
