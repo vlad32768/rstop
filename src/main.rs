@@ -2,7 +2,6 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::prelude::Stylize;
 use ratatui::{prelude::*, widgets::*};
 use std::time::Instant;
-use std::usize;
 use std::{error::Error, time::Duration};
 use sysinfo::{
     DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, SUPPORTED_SIGNALS, System,
@@ -146,16 +145,22 @@ impl State {
         }
     }
 
-    /// Calculates starting data index for plots
-    pub fn start_data_idx(&self, r: Rect) -> usize {
+    /// Calculates starting data index for plots. 
+    /// If data array fits completely, starting index is 0.
+    /// If not, starting index is last - data symbol length.
+    /// Data symbol length depends on rect width and addition.
+    /// 
+    /// addition is number of symbols used for non-data drawing. 
+    ///           Usually 2 * borders + 1 * axis_line + max number of symbols in a label.
+    pub fn start_data_idx(&self, r: Rect, addition:usize) -> usize {
         // actual data width for the plot = rect width - 2 borders - 3 digits - 1 axis -
 
-        let widget_data_width = 2 * (r.width - 6) as usize;
+        let widget_data_width = 2 * ((r.width as usize).saturating_sub(addition));
 
         if self.cpu_usage_all.len() < widget_data_width {
             0
         } else {
-            self.cpu_usage_all.len() - widget_data_width.clamp(0, usize::MAX)
+            self.cpu_usage_all.len() - widget_data_width.clamp(1, usize::MAX)
         }
     }
 
@@ -292,10 +297,8 @@ fn ui(frame: &mut Frame, state: &mut State) {
             render_plot_cpu_global(state, frame, upper[0]);
 
             // Mem plot
-            let mem_start_idx = state.start_data_idx(upper[1]);
-            let mem_plot = plot_mem(state, mem_start_idx);
-            frame.render_widget(mem_plot, upper[1]);
-
+            
+            render_plot_mem(state, frame, upper[1]);
             render_table_widget_processes(state, frame, layout[1]);
         }
         _ => {}
@@ -303,7 +306,7 @@ fn ui(frame: &mut Frame, state: &mut State) {
 }
 
 fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
-    let start_data_idx = state.start_data_idx(area);
+    let start_data_idx = state.start_data_idx(area,6);
     let dataslice = &state.cpu_usage_all[start_data_idx..];
     let datasets = vec![
         Dataset::default()
@@ -346,7 +349,17 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
     frame.render_widget(chart, area);
 }
 
-fn plot_mem(state: &State, start_idx: usize) -> Chart {
+fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
+
+    let t_m = state.system.total_memory();
+    let mem_labels:Vec<_> = (1..=5).rev()
+        .map(|x| if x==5 {"0".to_string()} else {mem_human_readable(t_m/x)})
+        .collect();
+    
+    let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap();
+    
+    let start_idx = state.start_data_idx(area,3+max_label_len);
+    
     let mem_usage_all = &state.mem_usage_all[start_idx..];
     let datasets = vec![
         Dataset::default()
@@ -358,19 +371,15 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
     ];
     //let last_mem_usage = state.mem_usage_all.last().unwrap().1;
 
-    let t_m = state.system.total_memory();
+    
     
     let total_mem = mem_human_readable(t_m);
     let used_mem = mem_human_readable(state.system.used_memory());
     let used_swap = mem_human_readable(state.system.used_swap());
     let total_swap = mem_human_readable(state.system.total_swap());
-
     
-    let mem_labels:Vec<_> = (1..=5).rev()
-        .map(|x| if x==5 {"0".to_string()} else {mem_human_readable(t_m/x)})
-        .collect();
     
-    Chart::new(datasets)
+    let mem_plot = Chart::new(datasets)
         .block(Block::bordered().title(format!(
             "Mem usage:{used_mem}/{total_mem}; Swap:{used_swap}/{total_swap}"
         )))
@@ -385,7 +394,8 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
                 .bounds([0.0, state.system.total_memory() as f64])
                 .style(Style::default().gray())
                 .labels(mem_labels.clone()),
-        )
+        );
+    frame.render_widget(mem_plot, area);
 }
 
 fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rect) {
