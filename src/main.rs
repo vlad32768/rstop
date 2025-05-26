@@ -10,8 +10,8 @@ use sysinfo::{
 #[derive(Debug)]
 enum SortBy {
     Name,
-    CPU,
-    PID,
+    Cpu,
+    Pid,
     Memory,
 }
 
@@ -62,24 +62,24 @@ impl State {
             ProcessRefreshKind::everything(),
         );
         system.refresh_memory();
-        
+
         let start_vec: Vec<(f64, f64)> = (0..200).map(|v| (v as f64, 0.0)).collect();
 
         let pd_start = create_processes_data(&system);
-        
+
         Self {
             mode: Mode::Normal,
             system,
             paused: false,
             plot_x: 199.0,
-            sort_by: SortBy::CPU,
+            sort_by: SortBy::Cpu,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
-            
+
             t_state: TableState::default().with_selected(0),
             sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
-            
+
             deb_show: false,
         }
     }
@@ -145,14 +145,14 @@ impl State {
         }
     }
 
-    /// Calculates starting data index for plots. 
+    /// Calculates starting data index for plots.
     /// If data array fits completely, starting index is 0.
     /// If not, starting index is last - data symbol length.
     /// Data symbol length depends on rect width and addition.
-    /// 
-    /// addition is number of symbols used for non-data drawing. 
+    ///
+    /// addition is number of symbols used for non-data drawing.
     ///           Usually 2 * borders + 1 * axis_line + max number of symbols in a label.
-    pub fn start_data_idx(&self, r: Rect, addition:usize) -> usize {
+    pub fn start_data_idx(&self, r: Rect, addition: usize) -> usize {
         // actual data width for the plot = rect width - 2 borders - 3 digits - 1 axis -
 
         let widget_data_width = 2 * ((r.width as usize).saturating_sub(addition));
@@ -194,8 +194,8 @@ impl State {
     fn sort_process_data(&mut self) {
         self.processes_data.sort_by(|a, b| match self.sort_by {
             SortBy::Name => b.1.cmp(&a.1),
-            SortBy::CPU => b.2.total_cmp(&a.2),
-            SortBy::PID => b.0.cmp(&a.0),
+            SortBy::Cpu => b.2.total_cmp(&a.2),
+            SortBy::Pid => b.0.cmp(&a.0),
             SortBy::Memory => b.3.cmp(&a.3),
         });
     }
@@ -220,9 +220,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     match key.code {
                         KeyCode::Char('q') => break Ok(()),
                         KeyCode::Char(' ') => state.paused = !state.paused,
-                        KeyCode::Char('1') => state.sort_by = SortBy::PID,
+                        KeyCode::Char('1') => state.sort_by = SortBy::Pid,
                         KeyCode::Char('2') => state.sort_by = SortBy::Name,
-                        KeyCode::Char('3') => state.sort_by = SortBy::CPU,
+                        KeyCode::Char('3') => state.sort_by = SortBy::Cpu,
                         KeyCode::Char('4') => state.sort_by = SortBy::Memory,
                         KeyCode::Char('k') => state.mode = Mode::Kill,
                         KeyCode::Char('y') => match state.mode {
@@ -297,7 +297,7 @@ fn ui(frame: &mut Frame, state: &mut State) {
             render_plot_cpu_global(state, frame, upper[0]);
 
             // Mem plot
-            
+
             render_plot_mem(state, frame, upper[1]);
             render_table_widget_processes(state, frame, layout[1]);
         }
@@ -306,7 +306,7 @@ fn ui(frame: &mut Frame, state: &mut State) {
 }
 
 fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
-    let start_data_idx = state.start_data_idx(area,6);
+    let start_data_idx = state.start_data_idx(area, 6);
     let dataslice = &state.cpu_usage_all[start_data_idx..];
     let datasets = vec![
         Dataset::default()
@@ -350,16 +350,22 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
 }
 
 fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
-
     let t_m = state.system.total_memory();
-    let mem_labels:Vec<_> = (1..=5).rev()
-        .map(|x| if x==5 {"0".to_string()} else {mem_human_readable(t_m/x)})
+    let mem_labels: Vec<_> = (1..=5)
+        .rev()
+        .map(|x| {
+            if x == 5 {
+                "0".to_string()
+            } else {
+                mem_human_readable(t_m / x)
+            }
+        })
         .collect();
-    
+
     let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap();
-    
-    let start_idx = state.start_data_idx(area,3+max_label_len);
-    
+
+    let start_idx = state.start_data_idx(area, 3 + max_label_len);
+
     let mem_usage_all = &state.mem_usage_all[start_idx..];
     let datasets = vec![
         Dataset::default()
@@ -371,14 +377,11 @@ fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
     ];
     //let last_mem_usage = state.mem_usage_all.last().unwrap().1;
 
-    
-    
     let total_mem = mem_human_readable(t_m);
     let used_mem = mem_human_readable(state.system.used_memory());
     let used_swap = mem_human_readable(state.system.used_swap());
     let total_swap = mem_human_readable(state.system.total_swap());
-    
-    
+
     let mem_plot = Chart::new(datasets)
         .block(Block::bordered().title(format!(
             "Mem usage:{used_mem}/{total_mem}; Swap:{used_swap}/{total_swap}"
@@ -469,10 +472,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         } else {
             proc.cmd()[0].to_str().unwrap()
         };
-        let mem_str = {
-            let m = mem_human_readable(proc.memory());
-            format!("{m}")
-        };
+        let mem_str = mem_human_readable(proc.memory());
         let kill_string = format!(
             "PID:{}\nName:{}\nCommand:{}\nMem:{}",
             proc.pid().as_u32(),
@@ -505,26 +505,24 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     }
 }
 
-///
-///
+/// Simple CPU usage gauge
 fn gauge_cpu_simple(state: &State) -> Gauge {
     let cpu_usage = state.system.global_cpu_usage() as f64;
-    let gauge = Gauge::default()
+    Gauge::default()
         .block(Block::new().title("CPU").borders(Borders::ALL))
         .gauge_style(Style::new().fg(Color::Magenta))
         .ratio(cpu_usage / 100.0)
-        .label(format!("{:.1}%", cpu_usage));
-    gauge
+        .label(format!("{:.1}%", cpu_usage))
 }
 
+///Simple Mem usage gauge
 fn gauge_mem_simple(state: &State) -> Gauge {
     let memory_usage = state.system.used_memory() as f64 / state.system.total_memory() as f64;
-    let gauge = Gauge::default()
+    Gauge::default()
         .block(Block::new().title("Memory").borders(Borders::ALL))
         .gauge_style(Style::new().fg(Color::Magenta))
         .ratio(memory_usage)
-        .label(format!("{:.1}%", memory_usage * 100.0));
-    gauge
+        .label(format!("{:.1}%", memory_usage * 100.0))
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
@@ -548,7 +546,6 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         ])
         .split(popup_layout[1])[1] // Return the middle chunk
 }
-
 
 // /// returns truncated human-readable memory size + unit str
 // fn mem_human_readable(bytes: u64) -> (String, &'static str) {
@@ -581,8 +578,7 @@ fn mem_human_readable(bytes: u64) -> String {
         return format!("{}M", bytes / (1024 * 1024));
     }
     if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
-        return
-            format!("{:.1}G", bytes as f64 / (1024 * 1024 * 1024) as f64);
+        return format!("{:.1}G", bytes as f64 / (1024 * 1024 * 1024) as f64);
     }
     format!("{}T", bytes / (1024 * 1024 * 1024 * 1024))
 }
