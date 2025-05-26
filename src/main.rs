@@ -317,19 +317,20 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
             .data(dataslice),
     ];
     let last_cpu_usage = state.cpu_usage_all.last().unwrap().1;
-    let cpu_frequency: f64 = state
-        .system
-        .cpus()
-        .iter()
-        .map(|cpu| cpu.frequency())
-        .sum::<u64>() as f64
-        / state.system.cpus().len() as f64;
+    // let cpu_frequency: f64 = state
+    //     .system
+    //     .cpus()
+    //     .iter()
+    //     .map(|cpu| cpu.frequency())
+    //     .sum::<u64>() as f64
+    //     / state.system.cpus().len() as f64;
+    // 
     //let cpu_frequency = state.system.cpus()[0].frequency();
 
     let chart = Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "CPU usage: {:.0}% total, {:.0} MHz",
-            last_cpu_usage, cpu_frequency
+            "CPU usage: {:.0}% total",// {:.0} MHz",
+            last_cpu_usage//, cpu_frequency
         )))
         //.legend_position(Some(LegendPosition::TopLeft))
         .legend_position(None)
