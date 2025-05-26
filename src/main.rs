@@ -63,11 +63,11 @@ impl State {
             ProcessRefreshKind::everything(),
         );
         system.refresh_memory();
-
+        
         let start_vec: Vec<(f64, f64)> = (0..200).map(|v| (v as f64, 0.0)).collect();
 
         let pd_start = create_processes_data(&system);
-
+        
         Self {
             mode: Mode::Normal,
             system,
@@ -76,9 +76,11 @@ impl State {
             sort_by: SortBy::CPU,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
+            
             t_state: TableState::default().with_selected(0),
             sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
+            
             deb_show: false,
         }
     }
@@ -248,26 +250,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     result
 }
 
-/// returns truncated human-readable memory size + unit str
-fn mem_human_readable(bytes: u64) -> (String, &'static str) {
-    if bytes < 10240 {
-        return (format!("{bytes}"), "");
-    }
-    if bytes < 1024 * 1024 * 10 {
-        return (format!("{}", bytes / 1024), "K");
-    }
-    if bytes < 1024 * 1024 * 1024 * 10 {
-        return (format!("{}", bytes / (1024 * 1024)), "M");
-    }
-    if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
-        return (
-            format!("{:.1}", bytes as f64 / (1024 * 1024 * 1024) as f64),
-            "G",
-        );
-    }
-    (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
-}
-
 fn ui(frame: &mut Frame, state: &mut State) {
     match 2 {
         1 => {
@@ -376,13 +358,21 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
     ];
     //let last_mem_usage = state.mem_usage_all.last().unwrap().1;
 
-    let (total_mem, tot_unit) = mem_human_readable(state.system.total_memory());
-    let (used_mem, u_unit) = mem_human_readable(state.system.used_memory());
-    let (used_swap, usw_unit) = mem_human_readable(state.system.used_swap());
-    let (total_swap, tsw_unit) = mem_human_readable(state.system.total_swap());
+    let t_m = state.system.total_memory();
+    
+    let total_mem = mem_human_readable(t_m);
+    let used_mem = mem_human_readable(state.system.used_memory());
+    let used_swap = mem_human_readable(state.system.used_swap());
+    let total_swap = mem_human_readable(state.system.total_swap());
+
+    
+    let mem_labels:Vec<_> = (1..=5).rev()
+        .map(|x| if x==5 {"0".to_string()} else {mem_human_readable(t_m/x)})
+        .collect();
+    
     Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "Mem usage:{used_mem}{u_unit}/{total_mem}{tot_unit}; Swap:{used_swap}{usw_unit}/{total_swap}{tsw_unit}"
+            "Mem usage:{used_mem}/{total_mem}; Swap:{used_swap}/{total_swap}"
         )))
         //.legend_position(Some(LegendPosition::TopLeft))
         .legend_position(None)
@@ -394,13 +384,7 @@ fn plot_mem(state: &State, start_idx: usize) -> Chart {
             Axis::default()
                 .bounds([0.0, state.system.total_memory() as f64])
                 .style(Style::default().gray())
-                .labels([
-                    "0".bold(),
-                    "25".into(),
-                    "50".bold(),
-                    "75".into(),
-                    "100".bold(),
-                ]),
+                .labels(mem_labels.clone()),
         )
 }
 
@@ -409,18 +393,18 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         .processes_data
         .iter()
         .map(|(pid, name, cpu, mem, du)| {
-            let (mem_str, mem_unit) = mem_human_readable(*mem);
+            let mem_str = mem_human_readable(*mem);
             let du_str = {
-                let (rbs, rbl) = mem_human_readable(du.read_bytes);
-                let (wbs, wbl) = mem_human_readable(du.written_bytes);
-                format!("{rbs}{rbl}/{wbs}{wbl}")
+                let rbs = mem_human_readable(du.read_bytes);
+                let wbs = mem_human_readable(du.written_bytes);
+                format!("{rbs}/{wbs}")
             };
 
             Row::new(vec![
                 format!("{pid}"),
                 name.clone(), //fixme
                 format!("{:.1}", cpu),
-                format!("{} {}", mem_str, mem_unit),
+                format!("{}", mem_str),
                 du_str,
             ])
         })
@@ -476,8 +460,8 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
             proc.cmd()[0].to_str().unwrap()
         };
         let mem_str = {
-            let (m, l) = mem_human_readable(proc.memory());
-            format!("{m}{l}")
+            let m = mem_human_readable(proc.memory());
+            format!("{m}")
         };
         let kill_string = format!(
             "PID:{}\nName:{}\nCommand:{}\nMem:{}",
@@ -553,4 +537,42 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1] // Return the middle chunk
+}
+
+
+// /// returns truncated human-readable memory size + unit str
+// fn mem_human_readable(bytes: u64) -> (String, &'static str) {
+//     if bytes < 10240 {
+//         return (format!("{bytes}"), "");
+//     }
+//     if bytes < 1024 * 1024 * 10 {
+//         return (format!("{}", bytes / 1024), "K");
+//     }
+//     if bytes < 1024 * 1024 * 1024 * 10 {
+//         return (format!("{}", bytes / (1024 * 1024)), "M");
+//     }
+//     if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
+//         return (
+//             format!("{:.1}", bytes as f64 / (1024 * 1024 * 1024) as f64),
+//             "G",
+//         );
+//     }
+//     (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
+// }
+
+fn mem_human_readable(bytes: u64) -> String {
+    if bytes < 10240 {
+        return format!("{bytes}");
+    }
+    if bytes < 1024 * 1024 * 10 {
+        return format!("{}K", bytes / 1024);
+    }
+    if bytes < 1024 * 1024 * 1024 * 10 {
+        return format!("{}M", bytes / (1024 * 1024));
+    }
+    if bytes < 1024 * 1024 * 1024 * 1024 * 10 {
+        return
+            format!("{:.1}G", bytes as f64 / (1024 * 1024 * 1024) as f64);
+    }
+    format!("{}T", bytes / (1024 * 1024 * 1024 * 1024))
 }
