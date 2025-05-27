@@ -7,7 +7,7 @@ use sysinfo::{
     DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, SUPPORTED_SIGNALS, System,
 };
 
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone,Copy,PartialEq,Debug)]
 enum SortBy {
     Pid,
     Name,
@@ -205,6 +205,15 @@ impl State {
             self.processes_data.reverse();
         }
     }
+    
+    fn set_sort_by(&mut self, sort_by: SortBy) {
+        if  self.sort_by == sort_by {
+            self.sort_ascending = !self.sort_ascending;
+        }
+        else {
+            self.sort_by = sort_by;
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -226,11 +235,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     match key.code {
                         KeyCode::Char('q') => break Ok(()),
                         KeyCode::Char(' ') => state.paused = !state.paused,
-                        KeyCode::Char('1') => state.sort_by = SortBy::Pid,
-                        KeyCode::Char('2') => state.sort_by = SortBy::Name,
-                        KeyCode::Char('3') => state.sort_by = SortBy::Cpu,
-                        KeyCode::Char('4') => state.sort_by = SortBy::Memory,
-                        KeyCode::Char('5') => state.sort_by = SortBy::Io,
+                        KeyCode::Char('1') => state.set_sort_by(SortBy::Pid),
+                        KeyCode::Char('2') => state.set_sort_by(SortBy::Name),
+                        KeyCode::Char('3') => state.set_sort_by(SortBy::Cpu),
+                        KeyCode::Char('4') => state.set_sort_by(SortBy::Memory),
+                        KeyCode::Char('5') => state.set_sort_by(SortBy::Io),
                         KeyCode::Char('k') => state.mode = Mode::Kill,
                         KeyCode::Char('y') => match state.mode {
                             Mode::Kill => {
@@ -331,7 +340,7 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
     //     .map(|cpu| cpu.frequency())
     //     .sum::<u64>() as f64
     //     / state.system.cpus().len() as f64;
-    // 
+    //
     //let cpu_frequency = state.system.cpus()[0].frequency();
 
     let chart = Chart::new(datasets)
@@ -432,13 +441,13 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         .collect();
 
     const header_names : [&str;5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
-    
+
     let header_vec = header_names.iter()
         .enumerate()
         .map(|(n,&x)| {
-            let sort_order = '🠯'; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯
+            let sort_order = if state.sort_ascending {'🠭'} else {'🠯'}; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯
             if n == state.sort_by as usize {
-                Text::from(format!("{x}{sort_order}")).bg(Color::Blue)    
+                Text::from(format!("{x}{sort_order}")).bg(Color::Blue)
             }
             else {Text::from(x)}
         })
