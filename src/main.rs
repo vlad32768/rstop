@@ -166,6 +166,7 @@ impl State {
         }
     }
 
+    /// Select next row in process table; advance `n` rows
     pub fn next_row(&mut self, n: usize) {
         let i = match self.t_state.selected() {
             Some(i) => {
@@ -180,6 +181,7 @@ impl State {
         self.select_row(i);
     }
 
+    /// Select previous row in process table; decrease `n` rows
     pub fn previous_row(&mut self, n: usize) {
         let i = match self.t_state.selected() {
             Some(i) => i.saturating_sub(n),
@@ -188,6 +190,7 @@ impl State {
         self.select_row(i);
     }
 
+    /// Select row by index `n`. 
     pub fn select_row(&mut self, row_no: usize) {
         self.t_state.select(Some(row_no));
         self.sb_state = self.sb_state.position(row_no);
@@ -205,7 +208,7 @@ impl State {
             self.processes_data.reverse();
         }
     }
-    
+
     fn set_sort_by(&mut self, sort_by: SortBy) {
         if  self.sort_by == sort_by {
             self.sort_ascending = !self.sort_ascending;
@@ -440,9 +443,9 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         })
         .collect();
 
-    const header_names : [&str;5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
+    const HEADER_NAMES: [&str;5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
 
-    let header_vec = header_names.iter()
+    let header_vec = HEADER_NAMES.iter()
         .enumerate()
         .map(|(n,&x)| {
             let sort_order = if state.sort_ascending {'🠭'} else {'🠯'}; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯
