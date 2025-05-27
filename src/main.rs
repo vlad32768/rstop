@@ -7,12 +7,13 @@ use sysinfo::{
     DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, SUPPORTED_SIGNALS, System,
 };
 
-#[derive(Debug)]
+#[derive(Clone,Copy,Debug)]
 enum SortBy {
+    Pid,
     Name,
     Cpu,
-    Pid,
     Memory,
+    Io,
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ struct State {
     system: System,
     paused: bool,
     sort_by: SortBy,
+    sort_ascending: bool,
     plot_x: f64,
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
@@ -73,9 +75,9 @@ impl State {
             paused: false,
             plot_x: 199.0,
             sort_by: SortBy::Cpu,
+            sort_ascending: false,
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
-
             t_state: TableState::default().with_selected(0),
             sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
@@ -197,7 +199,11 @@ impl State {
             SortBy::Cpu => b.2.total_cmp(&a.2),
             SortBy::Pid => b.0.cmp(&a.0),
             SortBy::Memory => b.3.cmp(&a.3),
+            SortBy::Io => b.4.read_bytes.cmp(&a.4.read_bytes),
         });
+        if self.sort_ascending{
+            self.processes_data.reverse();
+        }
     }
 }
 
@@ -224,6 +230,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Char('2') => state.sort_by = SortBy::Name,
                         KeyCode::Char('3') => state.sort_by = SortBy::Cpu,
                         KeyCode::Char('4') => state.sort_by = SortBy::Memory,
+                        KeyCode::Char('5') => state.sort_by = SortBy::Io,
                         KeyCode::Char('k') => state.mode = Mode::Kill,
                         KeyCode::Char('y') => match state.mode {
                             Mode::Kill => {
@@ -424,7 +431,20 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         })
         .collect();
 
-    let header = Row::new(vec!["PID", "Name", "CPU%", "MEM", "Disk R/W"])
+    const header_names : [&str;5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
+    
+    let header_vec = header_names.iter()
+        .enumerate()
+        .map(|(n,&x)| {
+            let sort_order = '🠯'; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯
+            if n == state.sort_by as usize {
+                Text::from(format!("{x}{sort_order}")).bg(Color::Blue)    
+            }
+            else {Text::from(x)}
+        })
+        .collect::<Vec<_>>();
+
+    let header = Row::new(header_vec)
         .style(Style::new().bold())
         .bottom_margin(1);
 
