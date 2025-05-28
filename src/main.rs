@@ -5,11 +5,13 @@ use std::time::Instant;
 use std::{error::Error, time::Duration};
 use sysinfo::{
     DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, SUPPORTED_SIGNALS, System,
+    Users,
 };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum SortBy {
     Pid,
+    User,
     Name,
     Cpu,
     Memory,
@@ -37,15 +39,27 @@ struct State {
     processes_data: ProcessesData,
     deb_show: bool,
 }
-/// (pid,name,cpu_usage,mem_usage,disk_usage)
-type ProcessesData = Vec<(u32, String, f32, u64, DiskUsage)>;
+/// (pid,uname,proc_name,cpu_usage,mem_usage,disk_usage)
+type ProcessesData = Vec<(u32, String, String, f32, u64, DiskUsage)>;
 fn create_processes_data(system: &System) -> ProcessesData {
+    let users = Users::new_with_refreshed_list();
     system
         .processes()
         .values()
         .map(|process| {
             (
                 process.pid().as_u32(),
+                {
+                    if let Some(uid) = process.user_id() {
+                        if let Some(user) = users.get_user_by_id(uid) {
+                            user.name().to_string()
+                        } else {
+                            "[Unknown]".to_string()
+                        }
+                    } else {
+                        "[Unknown]".to_string()
+                    }
+                },
                 process.name().to_str().unwrap().to_string(),
                 process.cpu_usage(),
                 process.memory(),
@@ -198,11 +212,12 @@ impl State {
 
     fn sort_process_data(&mut self) {
         self.processes_data.sort_by(|a, b| match self.sort_by {
-            SortBy::Name => b.1.cmp(&a.1),
-            SortBy::Cpu => b.2.total_cmp(&a.2),
             SortBy::Pid => b.0.cmp(&a.0),
-            SortBy::Memory => b.3.cmp(&a.3),
-            SortBy::Io => b.4.read_bytes.cmp(&a.4.read_bytes),
+            SortBy::User => b.1.cmp(&a.1),
+            SortBy::Name => b.2.cmp(&a.2),
+            SortBy::Cpu => b.3.total_cmp(&a.3),
+            SortBy::Memory => b.4.cmp(&a.4),
+            SortBy::Io => b.5.read_bytes.cmp(&a.5.read_bytes),
         });
         if self.sort_ascending {
             self.processes_data.reverse();
@@ -238,10 +253,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Char('q') => break Ok(()),
                         KeyCode::Char(' ') => state.paused = !state.paused,
                         KeyCode::Char('1') => state.set_sort_by(SortBy::Pid),
-                        KeyCode::Char('2') => state.set_sort_by(SortBy::Name),
-                        KeyCode::Char('3') => state.set_sort_by(SortBy::Cpu),
-                        KeyCode::Char('4') => state.set_sort_by(SortBy::Memory),
-                        KeyCode::Char('5') => state.set_sort_by(SortBy::Io),
+                        KeyCode::Char('2') => state.set_sort_by(SortBy::User),
+                        KeyCode::Char('3') => state.set_sort_by(SortBy::Name),
+                        KeyCode::Char('4') => state.set_sort_by(SortBy::Cpu),
+                        KeyCode::Char('5') => state.set_sort_by(SortBy::Memory),
+                        KeyCode::Char('6') => state.set_sort_by(SortBy::Io),
                         KeyCode::Char('k') => state.mode = Mode::Kill,
                         KeyCode::Char('y') => match state.mode {
                             Mode::Kill => {
@@ -424,7 +440,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     let rows: Vec<Row> = state
         .processes_data
         .iter()
-        .map(|(pid, name, cpu, mem, du)| {
+        .map(|(pid, user_name, name, cpu, mem, du)| {
             let mem_str = mem_human_readable(*mem);
             let du_str = {
                 let rbs = mem_human_readable(du.read_bytes);
@@ -434,6 +450,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
 
             Row::new(vec![
                 format!("{pid}"),
+                user_name.clone(),
                 name.clone(), //fixme
                 format!("{:.1}", cpu),
                 format!("{}", mem_str),
@@ -442,7 +459,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         })
         .collect();
 
-    const HEADER_NAMES: [&str; 5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
+    const HEADER_NAMES: [&str; 6] = ["PID", "User", "Name", "CPU%", "MEM", "Disk R/W"];
 
     let header_vec = HEADER_NAMES
         .iter()
@@ -467,6 +484,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         rows,
         [
             Constraint::Length(6),
+            Constraint::Length(10),
             Constraint::Length(20),
             Constraint::Length(5),
             Constraint::Length(6),
