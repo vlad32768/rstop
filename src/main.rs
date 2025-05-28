@@ -7,7 +7,7 @@ use sysinfo::{
     DiskUsage, Pid, Process, ProcessRefreshKind, ProcessesToUpdate, SUPPORTED_SIGNALS, System,
 };
 
-#[derive(Clone,Copy,PartialEq,Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum SortBy {
     Pid,
     Name,
@@ -190,7 +190,7 @@ impl State {
         self.select_row(i);
     }
 
-    /// Select row by index `n`. 
+    /// Select row by index `n`.
     pub fn select_row(&mut self, row_no: usize) {
         self.t_state.select(Some(row_no));
         self.sb_state = self.sb_state.position(row_no);
@@ -204,16 +204,15 @@ impl State {
             SortBy::Memory => b.3.cmp(&a.3),
             SortBy::Io => b.4.read_bytes.cmp(&a.4.read_bytes),
         });
-        if self.sort_ascending{
+        if self.sort_ascending {
             self.processes_data.reverse();
         }
     }
 
     fn set_sort_by(&mut self, sort_by: SortBy) {
-        if  self.sort_by == sort_by {
+        if self.sort_by == sort_by {
             self.sort_ascending = !self.sort_ascending;
-        }
-        else {
+        } else {
             self.sort_by = sort_by;
         }
     }
@@ -348,8 +347,8 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
 
     let chart = Chart::new(datasets)
         .block(Block::bordered().title(format!(
-            "CPU usage: {:.0}% total",// {:.0} MHz",
-            last_cpu_usage//, cpu_frequency
+            "CPU usage: {:.0}% total", // {:.0} MHz",
+            last_cpu_usage             //, cpu_frequency
         )))
         //.legend_position(Some(LegendPosition::TopLeft))
         .legend_position(None)
@@ -443,16 +442,20 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         })
         .collect();
 
-    const HEADER_NAMES: [&str;5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
+    const HEADER_NAMES: [&str; 5] = ["PID", "Name", "CPU%", "MEM", "Disk R/W"];
 
-    let header_vec = HEADER_NAMES.iter()
+    let header_vec = HEADER_NAMES
+        .iter()
         .enumerate()
-        .map(|(n,&x)| {
-            let sort_order = if state.sort_ascending {'🠭'} else {'🠯'}; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯
+        .map(|(n, &x)| {
+            //let sort_order = if state.sort_ascending {'🠭'} else {'🠯'}; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯 ▼▲
+            let sort_order = if state.sort_ascending { '▲' } else { '▼' }; // 	↑↓ ⇧ ⇩⇧⇩⇪  🠱 🠳 🠭 🠯 ▼▲
+
             if n == state.sort_by as usize {
                 Text::from(format!("{x}{sort_order}")).bg(Color::Blue)
+            } else {
+                Text::from(x)
             }
-            else {Text::from(x)}
         })
         .collect::<Vec<_>>();
 
