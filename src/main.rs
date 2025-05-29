@@ -43,33 +43,6 @@ struct State {
 }
 /// (pid,uname,proc_name,cpu_usage,mem_usage,disk_usage)
 type ProcessesData = Vec<(u32, String, String, f32, u64, DiskUsage)>;
-fn create_processes_data(system: &System) -> ProcessesData {
-    let users = Users::new_with_refreshed_list();
-    system
-        .processes()
-        .values()
-        .map(|process| {
-            (
-                process.pid().as_u32(),
-                {
-                    if let Some(uid) = process.user_id() {
-                        if let Some(user) = users.get_user_by_id(uid) {
-                            user.name().to_string()
-                        } else {
-                            "[Unknown]".to_string()
-                        }
-                    } else {
-                        "[Unknown]".to_string()
-                    }
-                },
-                process.name().to_str().unwrap().to_string(),
-                process.cpu_usage(),
-                process.memory(),
-                process.disk_usage(),
-            )
-        })
-        .collect()
-}
 
 impl State {
     pub fn new() -> Self {
@@ -83,9 +56,7 @@ impl State {
 
         let start_vec: Vec<(f64, f64)> = (0..200).map(|v| (v as f64, 0.0)).collect();
 
-        let pd_start = create_processes_data(&system);
-
-        Self {
+        let mut ret = Self {
             mode: Mode::Normal,
             system,
             paused: false,
@@ -95,17 +66,65 @@ impl State {
             cpu_usage_all: start_vec.clone(),
             mem_usage_all: start_vec,
             t_state: TableState::default().with_selected(0),
-            sb_state: ScrollbarState::new(pd_start.len()).position(0),
-            processes_data: pd_start,
+            sb_state: ScrollbarState::default().position(0),
+            processes_data: Vec::new(),
             filter_string: String::new(),
 
             deb_show: false,
-        }
+        };
+        ret.refresh();
+        ret
     }
 
+    /// Creates FILTERED process table data. 
+    fn create_processes_data(&mut self) {
+        let users = Users::new_with_refreshed_list();
+        self.processes_data = self
+            .system
+            .processes()
+            .values()
+            .filter_map(|process| {
+                let proc_name = process.name().to_str().unwrap().to_string();
+                let user_name = if let Some(uid) = process.user_id() {
+                    if let Some(user) = users.get_user_by_id(uid) {
+                        user.name().to_string()
+                    } else {
+                        "[Unknown]".to_string() //can't find username
+                    }
+                } else {
+                    "[Unknown]".to_string()  //can't get uid -- unsufficient privileges?
+                };
+                (self.filter_string.is_empty() || user_name.contains(&self.filter_string) || proc_name.contains(&self.filter_string))
+                    .then_some((
+                    process.pid().as_u32(),
+                    user_name,
+                    proc_name,
+                    process.cpu_usage(),
+                    process.memory(),
+                    process.disk_usage(),
+                ))
+            })
+            .collect();
+    }
+
+    fn sort_process_data(&mut self) {
+        self.processes_data.sort_by(|a, b| match self.sort_by {
+            SortBy::Pid => b.0.cmp(&a.0),
+            SortBy::User => b.1.cmp(&a.1),
+            SortBy::Name => b.2.cmp(&a.2),
+            SortBy::Cpu => b.3.total_cmp(&a.3),
+            SortBy::Memory => b.4.cmp(&a.4),
+            SortBy::Io => b.5.read_bytes.cmp(&a.5.read_bytes),
+        });
+        if self.sort_ascending {
+            self.processes_data.reverse();
+        }
+    }
+    
     pub fn get_selected_process(&self) -> Option<&Process> {
-        let sel_pid = self.processes_data[self.t_state.selected().unwrap_or(0)].0;
-        self.system.process(Pid::from_u32(sel_pid))
+        let sel_data = self.processes_data.get(self.t_state.selected().unwrap_or(0));
+        if let Some(d) = sel_data {self.system.process(Pid::from_u32(d.0))}
+        else {None} // empty table
     }
 
     pub fn refresh(&mut self) {
@@ -136,13 +155,18 @@ impl State {
             //------------ update process table
             // save currently selected pid
             let selected_pid = if let Some(idx) = self.t_state.selected() {
-                self.processes_data[idx].0
+                if let Some(val) = self.processes_data.get(idx) {
+                    val.0
+                } else {
+                    0
+                }
             } else {
-                unreachable!();
+                0 // A workaround for empty table
+                //unreachable!();
             };
 
             // new process data + sort
-            self.processes_data = create_processes_data(&self.system);
+            self.create_processes_data();
             self.sort_process_data();
 
             //restore the previous selection
@@ -213,20 +237,6 @@ impl State {
         self.sb_state = self.sb_state.position(row_no);
     }
 
-    fn sort_process_data(&mut self) {
-        self.processes_data.sort_by(|a, b| match self.sort_by {
-            SortBy::Pid => b.0.cmp(&a.0),
-            SortBy::User => b.1.cmp(&a.1),
-            SortBy::Name => b.2.cmp(&a.2),
-            SortBy::Cpu => b.3.total_cmp(&a.3),
-            SortBy::Memory => b.4.cmp(&a.4),
-            SortBy::Io => b.5.read_bytes.cmp(&a.5.read_bytes),
-        });
-        if self.sort_ascending {
-            self.processes_data.reverse();
-        }
-    }
-
     fn set_sort_by(&mut self, sort_by: SortBy) {
         if self.sort_by == sort_by {
             self.sort_ascending = !self.sort_ascending;
@@ -252,8 +262,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match state.mode{
-                        Mode::Normal => {                   // normal mode
+                    match state.mode {
+                        Mode::Normal => {
+                            // normal mode
                             match key.code {
                                 KeyCode::Char('q') => break Ok(()),
                                 KeyCode::Char(' ') => state.paused = !state.paused,
@@ -268,18 +279,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 _ => {}
                             }
                         }
-                        Mode::Kill => {                     // kill popup
+                        Mode::Kill => {
+                            // kill popup
                             match key.code {
                                 KeyCode::Char('y') => {
                                     state.get_selected_process().unwrap().kill();
                                     state.mode = Mode::Normal;
                                 }
-                                KeyCode::Char('n')|
-                                KeyCode::Esc => state.mode = Mode::Normal,
+                                KeyCode::Char('n') | KeyCode::Esc => state.mode = Mode::Normal,
                                 _ => {}
                             }
                         }
-                        Mode::Filter => {                   // filter popup
+                        Mode::Filter => {
+                            // filter popup
                             match key.code {
                                 KeyCode::Char(value) => {
                                     state.filter_string.push(value);
@@ -287,7 +299,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 KeyCode::Backspace => {
                                     state.filter_string.pop();
                                 }
-                                KeyCode::Enter => state.mode=Mode::Normal,
+                                KeyCode::Enter => state.mode = Mode::Normal,
                                 KeyCode::Esc => {
                                     state.filter_string.clear();
                                 }
@@ -478,7 +490,6 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                 let wbs = mem_human_readable(du.written_bytes);
                 format!("{rbs}/{wbs}")
             };
-
             Row::new(vec![
                 format!("{pid}"),
                 user_name.clone(),
@@ -543,35 +554,38 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         &mut state.sb_state,
     );
 
-    match state.mode{
+    match state.mode {
         //---------- kill msgbox ------------
         Mode::Kill => {
-            let rect = centered_rect(60, 20, area);
-            let kill_block = Block::default()
-                .title("Kill process (Y/N)?")
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White).bg(Color::Red));
-
-            let proc = state.get_selected_process().unwrap();
-
-            let cmdline = if proc.cmd().is_empty() {
-                "[None]"
-            } else {
-                proc.cmd()[0].to_str().unwrap()
-            };
-            let mem_str = mem_human_readable(proc.memory());
-            let kill_string = format!(
-                "PID:{}\nName:{}\nCommand:{}\nMem:{}",
-                proc.pid().as_u32(),
-                proc.name().to_str().unwrap(),
-                cmdline,
-                mem_str
-            );
-            let kill_text = Paragraph::new(kill_string)
-                .block(kill_block)
-                .wrap(Wrap { trim: true });
-            frame.render_widget(Clear, rect);
-            frame.render_widget(kill_text, rect);
+            if let Some(proc) = state.get_selected_process() {
+                let rect = centered_rect(60, 20, area);
+                let kill_block = Block::default()
+                    .title("Kill process (Y/N)?")
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(Color::White).bg(Color::Red));
+                
+                let cmdline = if proc.cmd().is_empty() {
+                    "[None]"
+                } else {
+                    proc.cmd()[0].to_str().unwrap()
+                };
+                let mem_str = mem_human_readable(proc.memory());
+                let kill_string = format!(
+                    "PID:{}\nName:{}\nCommand:{}\nMem:{}",
+                    proc.pid().as_u32(),
+                    proc.name().to_str().unwrap(),
+                    cmdline,
+                    mem_str
+                );
+                let kill_text = Paragraph::new(kill_string)
+                    .block(kill_block)
+                    .wrap(Wrap { trim: true });
+                frame.render_widget(Clear, rect);
+                frame.render_widget(kill_text, rect);
+            }
+            else {
+                state.mode = Mode::Normal; //can't get process -- process gone or empty table?
+            }
         }
         Mode::Filter => {
             let temp_chunks = Layout::default()
@@ -580,14 +594,17 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                 .split(area);
             let filter_chunks = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Length(2), Constraint::Length(20),Constraint::Fill(100)])
+                .constraints([
+                    Constraint::Length(2),
+                    Constraint::Length(20),
+                    Constraint::Fill(100),
+                ])
                 .split(temp_chunks[1]);
             let filter_area = filter_chunks[1];
             let style = Style::default().bg(Color::LightYellow).fg(Color::Black);
             let par = Paragraph::new(state.filter_string.clone())
                 .style(style)
-                .block(Block::default().title("Filter")
-                    .borders(Borders::ALL));
+                .block(Block::default().title("Filter").borders(Borders::ALL));
             frame.render_widget(Clear, filter_area);
             frame.render_widget(par, filter_area);
         }
