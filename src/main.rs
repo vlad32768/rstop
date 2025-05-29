@@ -22,6 +22,7 @@ enum SortBy {
 enum Mode {
     Normal,
     Kill,
+    Filter,
 }
 
 #[derive(Debug)]
@@ -32,6 +33,7 @@ struct State {
     sort_by: SortBy,
     sort_ascending: bool,
     plot_x: f64,
+    filter_string: String,
     cpu_usage_all: Vec<(f64, f64)>,
     mem_usage_all: Vec<(f64, f64)>,
     t_state: TableState,
@@ -95,6 +97,7 @@ impl State {
             t_state: TableState::default().with_selected(0),
             sb_state: ScrollbarState::new(pd_start.len()).position(0),
             processes_data: pd_start,
+            filter_string: String::new(),
 
             deb_show: false,
         }
@@ -249,25 +252,53 @@ fn main() -> Result<(), Box<dyn Error>> {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') => break Ok(()),
-                        KeyCode::Char(' ') => state.paused = !state.paused,
-                        KeyCode::Char('1') => state.set_sort_by(SortBy::Pid),
-                        KeyCode::Char('2') => state.set_sort_by(SortBy::User),
-                        KeyCode::Char('3') => state.set_sort_by(SortBy::Name),
-                        KeyCode::Char('4') => state.set_sort_by(SortBy::Cpu),
-                        KeyCode::Char('5') => state.set_sort_by(SortBy::Memory),
-                        KeyCode::Char('6') => state.set_sort_by(SortBy::Io),
-                        KeyCode::Char('k') => state.mode = Mode::Kill,
-                        KeyCode::Char('y') => match state.mode {
-                            Mode::Kill => {
-                                state.get_selected_process().unwrap().kill();
-                                state.mode = Mode::Normal;
+                    match state.mode{
+                        Mode::Normal => {                   // normal mode
+                            match key.code {
+                                KeyCode::Char('q') => break Ok(()),
+                                KeyCode::Char(' ') => state.paused = !state.paused,
+                                KeyCode::Char('1') => state.set_sort_by(SortBy::Pid),
+                                KeyCode::Char('2') => state.set_sort_by(SortBy::User),
+                                KeyCode::Char('3') => state.set_sort_by(SortBy::Name),
+                                KeyCode::Char('4') => state.set_sort_by(SortBy::Cpu),
+                                KeyCode::Char('5') => state.set_sort_by(SortBy::Memory),
+                                KeyCode::Char('6') => state.set_sort_by(SortBy::Io),
+                                KeyCode::Char('k') => state.mode = Mode::Kill,
+                                KeyCode::Char('/') => state.mode = Mode::Filter,
+                                _ => {}
                             }
-                            _ => {}
-                        },
-                        KeyCode::Char('n') => state.mode = Mode::Normal,
-                        KeyCode::Char('d') => state.deb_show = !state.deb_show,
+                        }
+                        Mode::Kill => {                     // kill popup
+                            match key.code {
+                                KeyCode::Char('y') => {
+                                    state.get_selected_process().unwrap().kill();
+                                    state.mode = Mode::Normal;
+                                }
+                                KeyCode::Char('n')|
+                                KeyCode::Esc => state.mode = Mode::Normal,
+                                _ => {}
+                            }
+                        }
+                        Mode::Filter => {                   // filter popup
+                            match key.code {
+                                KeyCode::Char(value) => {
+                                    state.filter_string.push(value);
+                                }
+                                KeyCode::Backspace => {
+                                    state.filter_string.pop();
+                                }
+                                KeyCode::Enter => state.mode=Mode::Normal,
+                                KeyCode::Esc => {
+                                    state.filter_string.clear();
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    //        All modes
+                    match key.code {
+                        KeyCode::Enter => state.mode = Mode::Normal,
+                        KeyCode::F(12) => state.deb_show = !state.deb_show,
                         KeyCode::Up => state.previous_row(1),
                         KeyCode::Down => state.next_row(1),
                         KeyCode::PageUp => state.previous_row(10),
@@ -511,35 +542,58 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         }),
         &mut state.sb_state,
     );
-    //---------- kill msgbox ------------
-    if let Mode::Kill = state.mode {
-        let rect = centered_rect(60, 20, area);
-        let kill_block = Block::default()
-            .title("Kill process (Y/N)?")
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White).bg(Color::Red));
 
-        let proc = state.get_selected_process().unwrap();
+    match state.mode{
+        //---------- kill msgbox ------------
+        Mode::Kill => {
+            let rect = centered_rect(60, 20, area);
+            let kill_block = Block::default()
+                .title("Kill process (Y/N)?")
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White).bg(Color::Red));
 
-        let cmdline = if proc.cmd().is_empty() {
-            "[None]"
-        } else {
-            proc.cmd()[0].to_str().unwrap()
-        };
-        let mem_str = mem_human_readable(proc.memory());
-        let kill_string = format!(
-            "PID:{}\nName:{}\nCommand:{}\nMem:{}",
-            proc.pid().as_u32(),
-            proc.name().to_str().unwrap(),
-            cmdline,
-            mem_str
-        );
-        let kill_text = Paragraph::new(kill_string)
-            .block(kill_block)
-            .wrap(Wrap { trim: true });
-        frame.render_widget(Clear, rect);
-        frame.render_widget(kill_text, rect);
+            let proc = state.get_selected_process().unwrap();
+
+            let cmdline = if proc.cmd().is_empty() {
+                "[None]"
+            } else {
+                proc.cmd()[0].to_str().unwrap()
+            };
+            let mem_str = mem_human_readable(proc.memory());
+            let kill_string = format!(
+                "PID:{}\nName:{}\nCommand:{}\nMem:{}",
+                proc.pid().as_u32(),
+                proc.name().to_str().unwrap(),
+                cmdline,
+                mem_str
+            );
+            let kill_text = Paragraph::new(kill_string)
+                .block(kill_block)
+                .wrap(Wrap { trim: true });
+            frame.render_widget(Clear, rect);
+            frame.render_widget(kill_text, rect);
+        }
+        Mode::Filter => {
+            let temp_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Fill(100), Constraint::Length(3)])
+                .split(area);
+            let filter_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Length(2), Constraint::Length(20),Constraint::Fill(100)])
+                .split(temp_chunks[1]);
+            let filter_area = filter_chunks[1];
+            let style = Style::default().bg(Color::LightYellow).fg(Color::Black);
+            let par = Paragraph::new(state.filter_string.clone())
+                .style(style)
+                .block(Block::default().title("Filter")
+                    .borders(Borders::ALL));
+            frame.render_widget(Clear, filter_area);
+            frame.render_widget(par, filter_area);
+        }
+        _ => {}
     }
+
     if state.deb_show {
         //-------- Debug wnd------
         let rect = centered_rect(60, 60, area);
