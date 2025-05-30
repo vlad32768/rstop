@@ -429,15 +429,8 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
 
 fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
     let t_m = state.system.total_memory();
-    let mem_labels: Vec<_> = (1..=5)
-        .rev()
-        .map(|x| {
-            if x == 5 {
-                "0".to_string()
-            } else {
-                mem_human_readable(t_m / x)
-            }
-        })
+    let mem_labels: Vec<_> = (0..=4)
+        .map(|x| mem_human_readable(t_m * x / 4))
         .collect();
 
     let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap();
