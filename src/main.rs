@@ -301,7 +301,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 }
                                 KeyCode::Enter => state.mode = Mode::Normal,
                                 KeyCode::Esc => {
-                                    state.filter_string.clear();
+                                    if state.filter_string.is_empty() {state.mode = Mode::Normal;}
+                                    else {state.filter_string.clear()};
                                 }
                                 _ => {}
                             }
@@ -588,7 +589,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                 .direction(Direction::Horizontal)
                 .constraints([
                     Constraint::Length(2),
-                    Constraint::Length(20),
+                    Constraint::Length((state.filter_string.len() as u16 + 2).clamp(14,50)),
                     Constraint::Fill(100),
                 ])
                 .split(temp_chunks[1]);
