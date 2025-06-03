@@ -530,7 +530,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     .header(header)
     .block(
         Block::new()
-            .title(format!("Processes:{}/{}",state.processes_data.len(),state.system.processes().len().to_string()))
+            .title(format!("Processes:{}/{}",state.processes_data.len(),state.system.processes().len()))
             .borders(Borders::ALL),
     )
     .style(Style::new().fg(Color::White))
