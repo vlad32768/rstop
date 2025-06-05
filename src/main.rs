@@ -685,6 +685,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 //     (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
 // }
 
+#[allow(dead_code)]
 fn mem_human_readable_1(bytes: u64) -> String {
     if bytes < 10240 {
         return format!("{bytes}");
@@ -701,6 +702,7 @@ fn mem_human_readable_1(bytes: u64) -> String {
     format!("{}T", bytes / (1024 * 1024 * 1024 * 1024))
 }
 
+#[allow(dead_code)]
 fn mem_human_readable(size: u64) -> String {
     const UNITS: [&str; 6] = ["", "K", "M", "G", "T", "P"];
 
