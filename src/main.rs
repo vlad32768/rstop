@@ -685,7 +685,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 //     (format!("{}", bytes / (1024 * 1024 * 1024 * 1024)), "T")
 // }
 
-fn mem_human_readable(bytes: u64) -> String {
+fn mem_human_readable_1(bytes: u64) -> String {
     if bytes < 10240 {
         return format!("{bytes}");
     }
@@ -699,4 +699,31 @@ fn mem_human_readable(bytes: u64) -> String {
         return format!("{:.1}G", bytes as f64 / (1024 * 1024 * 1024) as f64);
     }
     format!("{}T", bytes / (1024 * 1024 * 1024 * 1024))
+}
+
+fn mem_human_readable(size: u64) -> String {
+    const UNITS: [&str; 6] = ["", "K", "M", "G", "T", "P"];
+
+    if size < 1024 {
+        return format!("{}", size);
+    }
+
+    let mut value = size as f64;
+    let mut index = 0;
+
+    while value >= 1024.0 && index < UNITS.len() - 1 {
+        value /= 1024.0;
+        index += 1;
+    }
+
+    let unit = UNITS[index];
+
+    // dynamic precision
+    if value < 10.0 {
+        format!("{:.2}{}", value, unit)
+    } else if value < 100.0 {
+        format!("{:.1}{}", value, unit)
+    } else {
+        format!("{:.0}{}", value, unit)
+    }
 }
