@@ -142,8 +142,6 @@ impl State {
 
             self.plot_x += 1.0;
 
-            self.system.total_memory();
-
             self.cpu_usage_all.drain(0..1);
             self.cpu_usage_all
                 .push((self.plot_x, self.system.global_cpu_usage() as f64));
