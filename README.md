@@ -2,14 +2,14 @@
 
 ### Keymap:
 
-<key>Q</key> -- Quit;
+<kbd>Q</kbd> -- Quit;
 
-<key>1</key> .. <key>5</key> -- Sort by column 1..5, change sort order;
+<kbd>1</kbd> .. <kbd>5</kbd> -- Sort by column 1..5, change sort order;
 
-<key>Up</key>, <key>Down</key>, <key>PgUp</key>, <key>PgDn</key>, <key>Home</key>, <key>End</key> -- navigate process table;
+<kbd>Up</kbd>, <kbd>Down</kbd>, <kbd>PgUp</kbd>, <kbd>PgDn</kbd>, <kbd>Home</kbd>, <kbd>End</kbd> -- navigate process table;
 
-<key>/</key> -- Open filter dialog;
+<kbd>/</kbd> -- Open filter dialog;
 
-<key>Enter</key> -- Accept filter string and close filter dialog;
+<kbd>Enter</kbd> -- Accept filter string and close filter dialog;
 
-<key>Esc</key> -- Clear filter string or close the filter dialog if the filter string is empty;
+<kbd>Esc</kbd> -- Clear filter string or close the filter dialog if the filter string is empty;
