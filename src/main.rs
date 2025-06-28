@@ -120,11 +120,11 @@ impl State {
             self.processes_data.reverse();
         }
     }
-    
+
     pub fn get_selected_process(&self) -> Option<&Process> {
-        let sel_data = self.processes_data.get(self.t_state.selected().unwrap_or(0));
-        if let Some(d) = sel_data {self.system.process(Pid::from_u32(d.0))}
-        else {None} // empty table
+        self.processes_data
+            .get(self.t_state.selected().unwrap_or(0))
+            .and_then(|sel_data| self.system.process(Pid::from_u32(sel_data.0)))
     }
 
     pub fn refresh(&mut self) {
@@ -152,16 +152,24 @@ impl State {
 
             //------------ update process table
             // save currently selected pid
-            let selected_pid = if let Some(idx) = self.t_state.selected() {
-                if let Some(val) = self.processes_data.get(idx) {
-                    val.0
-                } else {
-                    0
-                }
-            } else {
-                0 // A workaround for empty table
-                //unreachable!();
-            };
+
+            // let selected_pid = if let Some(idx) = self.t_state.selected() {
+            //     if let Some(val) = self.processes_data.get(idx) {
+            //         val.0
+            //     } else {
+            //         0
+            //     }
+            // } else {
+            //     0 // A workaround for empty table
+            //     //unreachable!();
+            // };
+
+            let selected_pid = self
+                .t_state
+                .selected()
+                .and_then(|idx| self.processes_data.get(idx))
+                .and_then(|val| Some(val.0))
+                .unwrap_or(0);
 
             // new process data + sort
             self.create_processes_data();
