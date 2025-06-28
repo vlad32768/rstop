@@ -76,7 +76,7 @@ impl State {
         ret
     }
 
-    /// Creates FILTERED process table data. 
+    /// Creates FILTERED process table data.
     fn create_processes_data(&mut self) {
         let users = Users::new_with_refreshed_list();
         self.processes_data = self
@@ -92,10 +92,12 @@ impl State {
                         "[Unknown]".to_string() //can't find username
                     }
                 } else {
-                    "[Unknown]".to_string()  //can't get uid -- unsufficient privileges?
+                    "[Unknown]".to_string() //can't get uid -- unsufficient privileges?
                 };
-                (self.filter_string.is_empty() || user_name.contains(&self.filter_string) || proc_name.contains(&self.filter_string))
-                    .then_some((
+                (self.filter_string.is_empty()
+                    || user_name.contains(&self.filter_string)
+                    || proc_name.contains(&self.filter_string))
+                .then_some((
                     process.pid().as_u32(),
                     user_name,
                     proc_name,
@@ -307,8 +309,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 }
                                 KeyCode::Enter => state.mode = Mode::Normal,
                                 KeyCode::Esc => {
-                                    if state.filter_string.is_empty() {state.mode = Mode::Normal;}
-                                    else {state.filter_string.clear()};
+                                    if state.filter_string.is_empty() {
+                                        state.mode = Mode::Normal;
+                                    } else {
+                                        state.filter_string.clear()
+                                    };
                                 }
                                 _ => {}
                             }
@@ -436,9 +441,7 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
 
 fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
     let t_m = state.system.total_memory();
-    let mem_labels: Vec<_> = (0..=4)
-        .map(|x| mem_human_readable(t_m * x / 4))
-        .collect();
+    let mem_labels: Vec<_> = (0..=4).map(|x| mem_human_readable(t_m * x / 4)).collect();
 
     let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap();
 
@@ -536,7 +539,11 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
     .header(header)
     .block(
         Block::new()
-            .title(format!("Processes:{}/{}",state.processes_data.len(),state.system.processes().len()))
+            .title(format!(
+                "Processes:{}/{}",
+                state.processes_data.len(),
+                state.system.processes().len()
+            ))
             .borders(Borders::ALL),
     )
     .style(Style::new().fg(Color::White))
@@ -562,7 +569,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                     .title("Kill process (Y/N)?")
                     .borders(Borders::ALL)
                     .style(Style::default().fg(Color::White).bg(Color::Red));
-                
+
                 let cmdline = if proc.cmd().is_empty() {
                     "[None]"
                 } else {
@@ -581,8 +588,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                     .wrap(Wrap { trim: true });
                 frame.render_widget(Clear, rect);
                 frame.render_widget(kill_text, rect);
-            }
-            else {
+            } else {
                 state.mode = Mode::Normal; //can't get process -- process gone or empty table?
             }
         }
@@ -595,7 +601,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                 .direction(Direction::Horizontal)
                 .constraints([
                     Constraint::Length(2),
-                    Constraint::Length((state.filter_string.len() as u16 + 2).clamp(14,50)),
+                    Constraint::Length((state.filter_string.len() as u16 + 2).clamp(14, 50)),
                     Constraint::Fill(100),
                 ])
                 .split(temp_chunks[1]);
