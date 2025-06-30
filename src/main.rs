@@ -564,7 +564,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
         //---------- kill msgbox ------------
         Mode::Kill => {
             if let Some(proc) = state.get_selected_process() {
-                let rect = centered_rect(60, 20, area);
+                let rect = centered_rect(60, 60, area);
                 let kill_block = Block::default()
                     .title("Kill process (Y/N)?")
                     .borders(Borders::ALL)
