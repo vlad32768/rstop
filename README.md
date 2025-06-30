@@ -1,6 +1,10 @@
 ## rstop -- Interactive cross-platform process manager.
 
+![Rstop on Linux](rstop-lin.png)
+
 Rstop is a simple lightweight process manager written in Rust. It works on Windows, Linux and FreeBSD.
+
+Unicode fonts with Braille patterns are highly recommended, as rstop uses them to render 2D plots.
 
 ### Keymap:
 
