@@ -1,6 +1,6 @@
-## rstop -- Interactive cross-platform process manager written in Rust
+## rstop -- Interactive cross-platform process manager.
 
-Works on Windows, Linux and FreeBSD
+Rstop is a simple lightweight process manager written in Rust. It works on Windows, Linux and FreeBSD.
 
 ### Keymap:
 
@@ -10,10 +10,6 @@ Works on Windows, Linux and FreeBSD
 
 <kbd>Up</kbd>, <kbd>Down</kbd>, <kbd>PgUp</kbd>, <kbd>PgDn</kbd>, <kbd>Home</kbd>, <kbd>End</kbd> -- navigate process table;
 
-<kbd>/</kbd> -- Open filter dialog;
-
-<kbd>Enter</kbd> -- Accept filter string and close filter dialog;
-
-<kbd>Esc</kbd> -- Clear filter string or close the filter dialog if the filter string is empty;
+<kbd>/</kbd> -- Open Filter dialog. In Filter dialog, use alphanumeric keys and  <kbd>Backspace</kbd> to enter filter string, <kbd>Enter</kbd> to accept filter string and close the dialog, <kbd>Esc</kbd> to clear filter string or close the dialog if the filter string is empty;
 
 <kbd>K</kbd> -- Open Kill dialog;
