@@ -84,7 +84,11 @@ impl State {
             .processes()
             .values()
             .filter_map(|process| {
-                let proc_name = process.name().to_str().unwrap().to_string();
+                let proc_name = process
+                    .name()
+                    .to_str()
+                    .unwrap_or("[Invalid_UTF8]")
+                    .to_string();
                 let user_name = if let Some(uid) = process.user_id() {
                     if let Some(user) = users.get_user_by_id(uid) {
                         user.name().to_string()
@@ -291,7 +295,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                             // kill popup
                             match key.code {
                                 KeyCode::Char('y') => {
-                                    state.get_selected_process().unwrap().kill();
+                                    if let Some(proc) = state.get_selected_process() {
+                                        proc.kill();
+                                    }
                                     state.mode = Mode::Normal;
                                 }
                                 KeyCode::Char('n') | KeyCode::Esc => state.mode = Mode::Normal,
@@ -405,6 +411,7 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
             .style(Style::default().fg(Color::Green))
             .data(dataslice),
     ];
+    // cpu_usage_all vector is always not empty -- unwrap won't panic.
     let last_cpu_usage = state.cpu_usage_all.last().unwrap().1;
     // let cpu_frequency: f64 = state
     //     .system
@@ -423,6 +430,7 @@ fn render_plot_cpu_global(state: &State, frame: &mut Frame, area: Rect) {
         )))
         //.legend_position(Some(LegendPosition::TopLeft))
         .legend_position(None)
+        // dataslice isn't empty -- unwraps won't panic
         .x_axis(Axis::default().bounds([dataslice.first().unwrap().0, dataslice.last().unwrap().0]))
         .y_axis(
             Axis::default()
@@ -443,7 +451,7 @@ fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
     let t_m = state.system.total_memory();
     let mem_labels: Vec<_> = (0..=4).map(|x| mem_human_readable(t_m * x / 4)).collect();
 
-    let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap();
+    let max_label_len = mem_labels.iter().map(|x| x.len()).max().unwrap(); // won't panic
 
     let start_idx = state.start_data_idx(area, 3 + max_label_len);
 
@@ -470,8 +478,8 @@ fn render_plot_mem(state: &State, frame: &mut Frame, area: Rect) {
         //.legend_position(Some(LegendPosition::TopLeft))
         .legend_position(None)
         .x_axis(Axis::default().bounds([
-            mem_usage_all.first().unwrap().0,
-            mem_usage_all.last().unwrap().0,
+            mem_usage_all.first().unwrap().0, //won't panic
+            mem_usage_all.last().unwrap().0,  //won't panic
         ]))
         .y_axis(
             Axis::default()
@@ -573,13 +581,13 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
                 let cmdline = if proc.cmd().is_empty() {
                     "[None]"
                 } else {
-                    proc.cmd()[0].to_str().unwrap()
+                    proc.cmd()[0].to_str().unwrap_or("[Invalid_UTF8]")
                 };
                 let mem_str = mem_human_readable(proc.memory());
                 let kill_string = format!(
                     "PID:{}\nName:{}\nCommand:{}\nMem:{}",
                     proc.pid().as_u32(),
-                    proc.name().to_str().unwrap(),
+                    proc.name().to_str().unwrap_or("[Invalid_UTF8]"),
                     cmdline,
                     mem_str
                 );
@@ -625,7 +633,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
             .style(Style::default().fg(Color::Green).bg(Color::DarkGray));
         let deb_text = vec![
             Line::from(format!("Supported signals:{:?}", SUPPORTED_SIGNALS)),
-            Line::from(System::long_os_version().unwrap()),
+            Line::from(System::long_os_version().unwrap_or("Unknown OS".into())), // it seems that long_os_version() is always Some(...)
         ];
         let deb_par = Paragraph::new(deb_text)
             .block(debug_blk)
