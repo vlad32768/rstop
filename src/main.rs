@@ -644,7 +644,7 @@ fn render_table_widget_processes(state: &mut State, frame: &mut Frame, area: Rec
 }
 
 /// Simple CPU usage gauge
-fn gauge_cpu_simple(state: &State) -> Gauge {
+fn gauge_cpu_simple(state: &State) -> Gauge<'_> {
     let cpu_usage = state.system.global_cpu_usage() as f64;
     Gauge::default()
         .block(Block::new().title("CPU").borders(Borders::ALL))
@@ -654,7 +654,7 @@ fn gauge_cpu_simple(state: &State) -> Gauge {
 }
 
 ///Simple Mem usage gauge
-fn gauge_mem_simple(state: &State) -> Gauge {
+fn gauge_mem_simple(state: &State) -> Gauge<'_> {
     let memory_usage = state.system.used_memory() as f64 / state.system.total_memory() as f64;
     Gauge::default()
         .block(Block::new().title("Memory").borders(Borders::ALL))
