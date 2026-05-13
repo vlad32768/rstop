@@ -174,7 +174,7 @@ impl State {
                 .t_state
                 .selected()
                 .and_then(|idx| self.processes_data.get(idx))
-                .and_then(|val| Some(val.0))
+                .map(|val| val.0)
                 .unwrap_or(0);
 
             // new process data + sort
